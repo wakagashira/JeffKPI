@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <masterLabel>JeffTest</masterLabel>
+    <description>Sample Lightning App Page with ActivitiesKPIJeff component</description>
+    <flexiPageRegions>
+        <name>main</name>
+        <type>Region</type>
+        <itemInstances>
+            <componentInstance>
+                <componentName>c:activitiesKPIJeff</componentName>
+                <identifier>activitiesKPIJeff</identifier>
+            </componentInstance>
+        </itemInstances>
+    </flexiPageRegions>
+    <template>
+        <name>flexipage:defaultAppHomeTemplate</name>
+    </template>
+    <type>AppPage</type>
+</FlexiPage>

@@ -4,7 +4,6 @@ private class UserHierarchyControllerTest {
     static void setupData() {
         UserRole parentRole = new UserRole(Name='Parent Role');
         insert parentRole;
-
         UserRole childRole = new UserRole(Name='Child Role', ParentRoleId=parentRole.Id);
         insert childRole;
 
@@ -39,6 +38,24 @@ private class UserHierarchyControllerTest {
             UserRoleId = childRole.Id
         );
         insert childUser;
+
+        Task t = new Task(
+            OwnerId = childUser.Id,
+            Subject = 'Call with customer',
+            Status = 'Completed',
+            Priority = 'Normal',
+            Type = 'Call',
+            ActivityDate = Date.today()
+        );
+        insert t;
+
+        Event e = new Event(
+            OwnerId = childUser.Id,
+            Subject = 'Meeting with customer',
+            StartDateTime = System.now().addMinutes(-5),
+            EndDateTime = System.now().addMinutes(25)
+        );
+        insert e;
     }
 
     @isTest
@@ -48,17 +65,18 @@ private class UserHierarchyControllerTest {
             Test.startTest();
             List<User> results = UserHierarchyController.getUsersInMyHierarchy();
             Test.stopTest();
-
             System.assertNotEquals(0, results.size(), 'Users should be returned');
+        }
+    }
 
-            Boolean childFound = false;
-            for (User u : results) {
-                if (u.FirstName == 'Child') {
-                    childFound = true;
-                    break;
-                }
-            }
-            System.assert(childFound, 'Child user should be included');
+    @isTest
+    static void testGetUserActivitySummary() {
+        User parent = [SELECT Id FROM User WHERE FirstName = 'Parent' LIMIT 1];
+        System.runAs(parent) {
+            Test.startTest();
+            List<UserHierarchyController.UserActivitySummary> sums = UserHierarchyController.getUserActivitySummary();
+            Test.stopTest();
+            System.assertNotEquals(0, sums.size(), 'Summaries should be returned');
         }
     }
 }

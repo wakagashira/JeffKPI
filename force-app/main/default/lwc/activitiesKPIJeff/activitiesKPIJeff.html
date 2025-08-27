@@ -1,14 +1,28 @@
 <template>
-    <lightning-card title="Users in My Role Hierarchy">
-        <template if:true={users}>
-            <lightning-datatable
-                key-field="Id"
-                data={users}
-                columns={columns}>
-            </lightning-datatable>
+    <lightning-card title="User Activity (Last 30 Days)">
+        <template if:true={summaries}>
+            <div class="slds-grid slds-wrap">
+                <template for:each={summaries} for:item="user">
+                    <div key={user.userId} class="slds-col slds-size_1-of-3 slds-p-around_small">
+                        <div class="tile">
+                            <div class="tile-name">{user.name}</div>
+                            <div class="tile-metrics">
+                                <div class="metric">
+                                    <div class="metric-label">Calls</div>
+                                    <div class="metric-value">{user.callCount}</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Meetings</div>
+                                    <div class="metric-value">{user.meetingCount}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
         </template>
         <template if:true={errorMessage}>
-            <p class="slds-text-color_error">Error loading users: {errorMessage}</p>
+            <p class="slds-text-color_error slds-p-around_small">Error loading data: {errorMessage}</p>
         </template>
     </lightning-card>
 </template>

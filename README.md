@@ -1,10 +1,6 @@
-# ActivitiesKPIJeff LWC + Apex (Salesforce DX Project)
+# ActivitiesKPIJeff — FlexiPage Fix (Salesforce DX)
 
-This project includes:
-- Apex Controller (`UserHierarchyController`)
-- Test Class (`UserHierarchyControllerTest`)
-- LWC (`ActivitiesKPIJeff`)
-- Permission Set (`ActivitiesKPIJeff Access`) to grant Apex access
+This package includes the corrected JeffTest App Page definition using the right component reference.
 
 ## Deploy to CreteSandbox
 
@@ -12,18 +8,4 @@ This project includes:
 sf project deploy start --source-dir force-app/main/default --target-org CreteSandbox
 ```
 
-## Run Tests
-
-```bash
-sf apex run test --tests UserHierarchyControllerTest --wait 10 --target-org CreteSandbox
-```
-
-## Assign Permission Set
-
-After deploying, assign the permission set to users who should access the component:
-
-```bash
-sf org assign permset --name "ActivitiesKPIJeff" --target-org CreteSandbox
-```
-
-Then, use **Lightning App Builder** to place the `ActivitiesKPIJeff` component on a page.
+After deployment, use App Launcher → search for "JeffTest".
