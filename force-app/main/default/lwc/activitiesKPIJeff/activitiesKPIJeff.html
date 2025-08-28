@@ -1,25 +1,49 @@
 <template>
     <lightning-card title="User Activity (Last 30 Days)">
-        <template if:true={summaries}>
-            <div class="slds-grid slds-wrap">
-                <template for:each={summaries} for:item="user">
-                    <div key={user.userId} class="slds-col slds-size_1-of-3 slds-p-around_small">
-                        <div class="tile">
-                            <div class="tile-name">{user.name}</div>
-                            <div class="tile-metrics">
-                                <div class="metric">
-                                    <div class="metric-label">Calls</div>
-                                    <div class="metric-value">{user.callCount}</div>
-                                </div>
-                                <div class="metric">
-                                    <div class="metric-label">Meetings</div>
-                                    <div class="metric-value">{user.meetingCount}</div>
+        <div class="slds-p-around_medium">
+            <lightning-combobox
+                name="partnerFilter"
+                label="Filter by Partner"
+                value={selectedPartner}
+                options={partnerOptions}
+                onchange={handlePartnerChange}>
+            </lightning-combobox>
+
+            <lightning-combobox
+                name="userFilter"
+                label="Filter by User"
+                value={selectedUser}
+                options={userOptions}
+                onchange={handleUserChange}
+                class="slds-m-top_small">
+            </lightning-combobox>
+        </div>
+
+        <template if:true={filteredData}>
+            <template for:each={filteredData} for:item="group">
+                <div key={group.partner} class="slds-p-around_medium">
+                    <h2 class="slds-text-heading_medium">{group.partner}</h2>
+                    <div class="slds-grid slds-wrap slds-m-top_small">
+                        <template for:each={group.users} for:item="user">
+                            <div key={user.userId} class="slds-col slds-grow slds-p-around_small">
+                                <div class="tile">
+                                    <div class="tile-name">{user.name}</div>
+                                    <div class="tile-metrics">
+                                        <div class="metric">
+                                            <div class="metric-label">Calls</div>
+                                            <div class="metric-value">{user.callCount}</div>
+                                        </div>
+                                        <div class="metric">
+                                            <div class="metric-label">Meetings</div>
+                                            <div class="metric-value">{user.meetingCount}</div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </template>
                     </div>
-                </template>
-            </div>
+                </div>
+            </template>
         </template>
         <template if:true={errorMessage}>
             <p class="slds-text-color_error slds-p-around_small">Error loading data: {errorMessage}</p>

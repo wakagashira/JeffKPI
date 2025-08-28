@@ -5,6 +5,7 @@ public with sharing class UserHierarchyController {
         @AuraEnabled public String name;
         @AuraEnabled public Integer callCount;
         @AuraEnabled public Integer meetingCount;
+        @AuraEnabled public String partnerName;
     }
 
     @AuraEnabled(cacheable=true)
@@ -18,15 +19,12 @@ public with sharing class UserHierarchyController {
         collectChildRoles(myRoleId, roleIds);
         roleIds.add(myRoleId);
 
-        Map<Id, String> userMap = new Map<Id, String>();
-        for (User u : [
-            SELECT Id, Name
-            FROM User
-            WHERE UserRoleId IN :roleIds AND IsActive = true
-        ]) {
-            userMap.put(u.Id, u.Name);
-        }
-        if (userMap.isEmpty()) return new List<UserActivitySummary>();
+        Map<Id, User> usersById = new Map<Id, User>(
+            [SELECT Id, Name, Partner__c
+             FROM User
+             WHERE UserRoleId IN :roleIds AND IsActive = true]
+        );
+        if (usersById.isEmpty()) return new List<UserActivitySummary>();
 
         Date startDateTasks = Date.today().addDays(-30);
         Datetime startDateEvents = System.now().addDays(-30);
@@ -35,7 +33,7 @@ public with sharing class UserHierarchyController {
         for (AggregateResult ar : [
             SELECT OwnerId ownerId, COUNT(Id) cnt
             FROM Task
-            WHERE OwnerId IN :userMap.keySet()
+            WHERE OwnerId IN :usersById.keySet()
             AND Type = 'Call'
             AND ActivityDate >= :startDateTasks
             GROUP BY OwnerId
@@ -47,7 +45,7 @@ public with sharing class UserHierarchyController {
         for (AggregateResult ar : [
             SELECT OwnerId ownerId, COUNT(Id) cnt
             FROM Event
-            WHERE OwnerId IN :userMap.keySet()
+            WHERE OwnerId IN :usersById.keySet()
             AND StartDateTime >= :startDateEvents
             GROUP BY OwnerId
         ]) {
@@ -55,12 +53,13 @@ public with sharing class UserHierarchyController {
         }
 
         List<UserActivitySummary> results = new List<UserActivitySummary>();
-        for (Id uid : userMap.keySet()) {
+        for (User u : usersById.values()) {
             UserActivitySummary uas = new UserActivitySummary();
-            uas.userId = uid;
-            uas.name = userMap.get(uid);
-            uas.callCount = callCounts.containsKey(uid) ? callCounts.get(uid) : 0;
-            uas.meetingCount = meetingCounts.containsKey(uid) ? meetingCounts.get(uid) : 0;
+            uas.userId = u.Id;
+            uas.name = u.Name;
+            uas.partnerName = u.Partner__c;
+            uas.callCount = callCounts.containsKey(u.Id) ? callCounts.get(u.Id) : 0;
+            uas.meetingCount = meetingCounts.containsKey(u.Id) ? meetingCounts.get(u.Id) : 0;
             results.add(uas);
         }
         return results;
@@ -88,9 +87,7 @@ public with sharing class UserHierarchyController {
 
     private static void collectChildRoles(Id parentRoleId, Set<Id> roleIds) {
         for (UserRole ur : [
-            SELECT Id 
-            FROM UserRole 
-            WHERE ParentRoleId = :parentRoleId
+            SELECT Id FROM UserRole WHERE ParentRoleId = :parentRoleId
         ]) {
             if (!roleIds.contains(ur.Id)) {
                 roleIds.add(ur.Id);
