@@ -1,22 +1,38 @@
 <template>
-    <lightning-card title="User Activity (Last 30 Days)">
+    <lightning-card title="Sales Performance">
         <div class="slds-p-around_medium">
-            <lightning-combobox
-                name="partnerFilter"
-                label="Filter by Partner"
-                value={selectedPartner}
-                options={partnerOptions}
-                onchange={handlePartnerChange}>
-            </lightning-combobox>
+            <div class="slds-grid slds-gutters">
+                <div class="slds-col">
+                    <lightning-combobox name="partnerFilter" label="Partner" value={selectedPartner} options={partnerOptions} onchange={handlePartnerChange}></lightning-combobox>
+                </div>
+                <div class="slds-col">
+                    <lightning-combobox name="userFilter" label="User" value={selectedUser} options={userOptions} onchange={handleUserChange}></lightning-combobox>
+                </div>
+                <div class="slds-col">
+                    <lightning-combobox name="timeframeFilter" label="Timeframe" value={selectedTimeframe} options={timeframeOptions} onchange={handleTimeframeChange}></lightning-combobox>
+                </div>
+            </div>
 
-            <lightning-combobox
-                name="userFilter"
-                label="Filter by User"
-                value={selectedUser}
-                options={userOptions}
-                onchange={handleUserChange}
-                class="slds-m-top_small">
-            </lightning-combobox>
+            <div class="slds-grid slds-gutters slds-m-top_medium">
+                <div class="slds-col">
+                    <div class="summary-card">
+                        <div class="summary-label">Pipeline Value</div>
+                        <div class="summary-value">{pipelineValueFormatted}</div>
+                    </div>
+                </div>
+                <div class="slds-col">
+                    <div class="summary-card">
+                        <div class="summary-label">Avg Deal Size</div>
+                        <div class="summary-value">{avgDealSizeFormatted}</div>
+                    </div>
+                </div>
+                <div class="slds-col">
+                    <div class="summary-card">
+                        <div class="summary-label">Opp → Close Conversion</div>
+                        <div class="summary-value">{conversionRateFormatted}</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <template if:true={filteredData}>
@@ -34,6 +50,10 @@
                                             <div class="metric-value">{user.callCount}</div>
                                         </div>
                                         <div class="metric">
+                                            <div class="metric-label">Emails</div>
+                                            <div class="metric-value">{user.emailCount}</div>
+                                        </div>
+                                        <div class="metric">
                                             <div class="metric-label">Meetings</div>
                                             <div class="metric-value">{user.meetingCount}</div>
                                         </div>
@@ -45,6 +65,7 @@
                 </div>
             </template>
         </template>
+
         <template if:true={errorMessage}>
             <p class="slds-text-color_error slds-p-around_small">Error loading data: {errorMessage}</p>
         </template>

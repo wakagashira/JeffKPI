@@ -1,27 +1,13 @@
-# ActivitiesKPIJeff — With Filters (Salesforce DX)
+# Deployment (Windows PowerShell)
 
-Features:
-- Apex with getUserActivitySummary + getUsersInMyHierarchy
-- LWC groups by Partner__c
-- Users sorted alphabetically by first name
-- Partner dropdown filter
-- User dropdown filter
-- Row layout for user tiles
-- Permission Set grants Apex access
-- JeffTest App Page includes component
+# Check Salesforce CLI
+& "C:\Program Files\Sf\bin\sf.cmd" --version
 
-## Deploy to CreteSandbox
+# Deploy to CreteSandbox
+& "C:\Program Files\Sf\bin\sf.cmd" project deploy start --source-dir force-app/main/default --target-org CreteSandbox
 
-```bash
-sf project deploy start --source-dir force-app/main/default --target-org CreteSandbox
-```
+# Run tests
+& "C:\Program Files\Sf\bin\sf.cmd" apex run test --tests UserHierarchyControllerTest --wait 10 --target-org CreteSandbox
 
-## Assign Permission Set
-
-```bash
-sf org assign permset --name "ActivitiesKPIJeff" --target-org CreteSandbox
-```
-
-## Open Page
-
-App Launcher → JeffTest
+# Assign permission set
+& "C:\Program Files\Sf\bin\sf.cmd" org assign permset --name "ActivitiesKPIJeff" --target-org CreteSandbox
