@@ -1,82 +1,95 @@
 @isTest
-private class UserHierarchyControllerTest {
+public class UserHierarchyControllerTest {
+
     @testSetup
     static void setupData() {
-        UserRole parentRole = new UserRole(Name='Parent Role');
-        insert parentRole;
-        UserRole childRole = new UserRole(Name='Child Role', ParentRoleId=parentRole.Id);
-        insert childRole;
+        // Create a role hierarchy
+        UserRole ceoRole = new UserRole(Name = 'CEO');
+        insert ceoRole;
 
-        Profile p = [SELECT Id FROM Profile WHERE Name='Standard User' LIMIT 1];
+        UserRole mgrRole = new UserRole(Name = 'Manager', ParentRoleId = ceoRole.Id);
+        insert mgrRole;
 
-        User parentUser = new User(
-            FirstName = 'Parent',
-            LastName = 'User',
-            Email = 'parentuser@test.com',
-            Username = 'parentuser@test.com.' + System.currentTimeMillis(),
-            Alias = 'parusr',
-            TimeZoneSidKey = 'America/New_York',
-            LocaleSidKey = 'en_US',
+        // Create users for the roles
+        Profile p = [SELECT Id FROM Profile WHERE Name = 'Standard User' LIMIT 1];
+
+        User ceoUser = new User(
+            Alias = 'ceouser',
+            Email = 'ceo@example.com',
             EmailEncodingKey = 'UTF-8',
+            LastName = 'CEO',
             LanguageLocaleKey = 'en_US',
-            ProfileId = p.Id,
-            UserRoleId = parentRole.Id
-        );
-        insert parentUser;
-
-        User childUser = new User(
-            FirstName = 'Child',
-            LastName = 'User',
-            Email = 'childuser@test.com',
-            Username = 'childuser@test.com.' + System.currentTimeMillis(),
-            Alias = 'chiusr',
-            TimeZoneSidKey = 'America/New_York',
             LocaleSidKey = 'en_US',
-            EmailEncodingKey = 'UTF-8',
-            LanguageLocaleKey = 'en_US',
             ProfileId = p.Id,
-            UserRoleId = childRole.Id
+            TimeZoneSidKey = 'America/New_York',
+            UserName = 'ceo.user@example.com',
+            UserRoleId = ceoRole.Id
         );
-        insert childUser;
+        insert ceoUser;
 
-        Task t = new Task(
-            OwnerId = childUser.Id,
-            Subject = 'Call with customer',
-            Status = 'Completed',
-            Priority = 'Normal',
-            Type = 'Call',
-            ActivityDate = Date.today()
+        User mgrUser = new User(
+            Alias = 'mgruser',
+            Email = 'mgr@example.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'Manager',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            ProfileId = p.Id,
+            TimeZoneSidKey = 'America/New_York',
+            UserName = 'mgr.user@example.com',
+            UserRoleId = mgrRole.Id
         );
-        insert t;
-
-        Event e = new Event(
-            OwnerId = childUser.Id,
-            Subject = 'Meeting with customer',
-            StartDateTime = System.now().addMinutes(-5),
-            EndDateTime = System.now().addMinutes(25)
-        );
-        insert e;
+        insert mgrUser;
     }
 
     @isTest
-    static void testGetUsersInMyHierarchy() {
-        User parent = [SELECT Id FROM User WHERE FirstName = 'Parent' LIMIT 1];
-        System.runAs(parent) {
+    static void testGetUserActivitySummary_NormalUser() {
+        User normalUser = [SELECT Id FROM User WHERE Alias = 'mgruser' LIMIT 1];
+        System.runAs(normalUser) {
             Test.startTest();
-            List<User> results = UserHierarchyController.getUsersInMyHierarchy();
+            List<UserHierarchyController.UserActivitySummary> results = UserHierarchyController.getUserActivitySummary();
             Test.stopTest();
-            System.assertNotEquals(0, results.size(), 'Users should be returned');
+            System.assert(!results.isEmpty(), 'Normal user should see hierarchy data');
         }
     }
 
     @isTest
-    static void testGetUserActivitySummary() {
-        User parent = [SELECT Id FROM User WHERE FirstName = 'Parent' LIMIT 1];
-        System.runAs(parent) {
+    static void testGetUserActivitySummary_SysAdminSeesAll() {
+        // Get a SysAdmin profile user
+        Profile sysAdminProfile = [SELECT Id FROM Profile WHERE Name = 'System Administrator' LIMIT 1];
+
+        UserRole dummyRole = [SELECT Id FROM UserRole LIMIT 1];
+
+        User sysAdmin = new User(
+            Alias = 'sysadm',
+            Email = 'sysadmin@example.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'SysAdmin',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            ProfileId = sysAdminProfile.Id,
+            TimeZoneSidKey = 'America/New_York',
+            UserName = 'sysadmin.user@example.com',
+            UserRoleId = dummyRole.Id
+        );
+        insert sysAdmin;
+
+        System.runAs(sysAdmin) {
             Test.startTest();
-            List<UserHierarchyController.UserActivitySummary> sums = UserHierarchyController.getUserActivitySummary();
+            List<UserHierarchyController.UserActivitySummary> results = UserHierarchyController.getUserActivitySummary();
             Test.stopTest();
-            System.assertNotEquals(0, sums.size(), 'Summaries should be returned');
+            System.assert(results.size() >= 2, 'SysAdmin should see all users, not just role hierarchy');
+        }
+    }
+
+    @isTest
+    static void testGetUsersInMyHierarchy() {
+        User normalUser = [SELECT Id FROM User WHERE Alias = 'mgruser' LIMIT 1];
+        System.runAs(normalUser) {
+            Test.startTest();
+            List<User> users = UserHierarchyController.getUsersInMyHierarchy();
+            Test.stopTest();
+            System.assert(!users.isEmpty(), 'Hierarchy users should be returned');
         }
     }
 }

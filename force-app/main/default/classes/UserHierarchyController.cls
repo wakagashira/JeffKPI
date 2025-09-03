@@ -10,14 +10,10 @@ public with sharing class UserHierarchyController {
 
     @AuraEnabled(cacheable=true)
     public static List<UserActivitySummary> getUserActivitySummary() {
-        Id myRoleId = getEffectiveRoleId();
-        if (myRoleId == null) {
+        Set<Id> roleIds = getEffectiveRoleIds();
+        if (roleIds.isEmpty()) {
             return new List<UserActivitySummary>();
         }
-
-        Set<Id> roleIds = new Set<Id>();
-        collectChildRoles(myRoleId, roleIds);
-        roleIds.add(myRoleId);
 
         Map<Id, User> usersById = new Map<Id, User>(
             [SELECT Id, Name, Partner__c
@@ -45,33 +41,36 @@ public with sharing class UserHierarchyController {
      */
     @AuraEnabled(cacheable=true)
     public static List<User> getUsersInMyHierarchy() {
-        Id myRoleId = getEffectiveRoleId();
-        if (myRoleId == null) return new List<User>();
-
-        Set<Id> roleIds = new Set<Id>();
-        collectChildRoles(myRoleId, roleIds);
-        roleIds.add(myRoleId);
+        Set<Id> roleIds = getEffectiveRoleIds();
+        if (roleIds.isEmpty()) return new List<User>();
 
         return [SELECT Id, Name, UserRoleId FROM User WHERE UserRoleId IN :roleIds];
     }
 
     /**
-     * Returns the effective roleId for the current user.
-     * If user is SysAdmin, return CEO role Id instead.
+     * Returns the set of roleIds the current user should see.
+     * - SysAdmin → ALL roles
+     * - Others → their role + child roles
      */
-    private static Id getEffectiveRoleId() {
+    private static Set<Id> getEffectiveRoleIds() {
         Id profileId = UserInfo.getProfileId();
         String profileName = [SELECT Name FROM Profile WHERE Id = :profileId].Name;
 
+        // SysAdmin → all roles
         if (profileName == 'System Administrator') {
-            // CEO role lookup
-            UserRole ceoRole = [
-                SELECT Id FROM UserRole WHERE Name = 'CEO' LIMIT 1
-            ];
-            return ceoRole.Id;
-        } else {
-            return UserInfo.getUserRoleId();
+            return new Map<Id, UserRole>(
+                [SELECT Id FROM UserRole]
+            ).keySet();
         }
+
+        // Others → current role + children
+        Set<Id> roleIds = new Set<Id>();
+        Id myRoleId = UserInfo.getUserRoleId();
+        if (myRoleId != null) {
+            collectChildRoles(myRoleId, roleIds);
+            roleIds.add(myRoleId);
+        }
+        return roleIds;
     }
 
     /**
