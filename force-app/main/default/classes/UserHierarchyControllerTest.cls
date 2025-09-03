@@ -55,9 +55,7 @@ public class UserHierarchyControllerTest {
 
     @isTest
     static void testGetUserActivitySummary_SysAdminSeesAll() {
-        // Get a SysAdmin profile user
         Profile sysAdminProfile = [SELECT Id FROM Profile WHERE Name = 'System Administrator' LIMIT 1];
-
         UserRole dummyRole = [SELECT Id FROM UserRole LIMIT 1];
 
         User sysAdmin = new User(
@@ -83,13 +81,40 @@ public class UserHierarchyControllerTest {
     }
 
     @isTest
-    static void testGetUsersInMyHierarchy() {
+    static void testGetUsersInMyHierarchy_NormalUser() {
         User normalUser = [SELECT Id FROM User WHERE Alias = 'mgruser' LIMIT 1];
         System.runAs(normalUser) {
             Test.startTest();
             List<User> users = UserHierarchyController.getUsersInMyHierarchy();
             Test.stopTest();
-            System.assert(!users.isEmpty(), 'Hierarchy users should be returned');
+            System.assert(!users.isEmpty(), 'Hierarchy users should be returned for normal user');
+        }
+    }
+
+    @isTest
+    static void testGetUsersInMyHierarchy_SysAdminSeesAll() {
+        Profile sysAdminProfile = [SELECT Id FROM Profile WHERE Name = 'System Administrator' LIMIT 1];
+        UserRole dummyRole = [SELECT Id FROM UserRole LIMIT 1];
+
+        User sysAdmin = new User(
+            Alias = 'sysadm2',
+            Email = 'sysadmin2@example.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'SysAdmin2',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            ProfileId = sysAdminProfile.Id,
+            TimeZoneSidKey = 'America/New_York',
+            UserName = 'sysadmin2.user@example.com',
+            UserRoleId = dummyRole.Id
+        );
+        insert sysAdmin;
+
+        System.runAs(sysAdmin) {
+            Test.startTest();
+            List<User> users = UserHierarchyController.getUsersInMyHierarchy();
+            Test.stopTest();
+            System.assert(users.size() >= 2, 'SysAdmin should see all users across org');
         }
     }
 }

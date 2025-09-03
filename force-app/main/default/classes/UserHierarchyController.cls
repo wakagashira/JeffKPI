@@ -11,19 +11,30 @@ public with sharing class UserHierarchyController {
     @AuraEnabled(cacheable=true)
     public static List<UserActivitySummary> getUserActivitySummary() {
         Set<Id> roleIds = getEffectiveRoleIds();
-        if (roleIds.isEmpty()) {
-            return new List<UserActivitySummary>();
+
+        List<User> users = new List<User>();
+        if (!roleIds.isEmpty()) {
+            users = [SELECT Id, Name, Partner__c FROM User WHERE UserRoleId IN :roleIds];
         }
 
-        Map<Id, User> usersById = new Map<Id, User>(
-            [SELECT Id, Name, Partner__c
-             FROM User
-             WHERE UserRoleId IN :roleIds]
-        );
+        // Always include the current user if not already present
+        if (!users.isEmpty()) {
+            Boolean found = false;
+            for (User u : users) {
+                if (u.Id == UserInfo.getUserId()) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                users.add([SELECT Id, Name, Partner__c FROM User WHERE Id = :UserInfo.getUserId()]);
+            }
+        } else {
+            users.add([SELECT Id, Name, Partner__c FROM User WHERE Id = :UserInfo.getUserId()]);
+        }
 
         List<UserActivitySummary> results = new List<UserActivitySummary>();
-
-        for (User u : usersById.values()) {
+        for (User u : users) {
             UserActivitySummary uas = new UserActivitySummary();
             uas.userId = u.Id;
             uas.name = u.Name;
@@ -36,15 +47,28 @@ public with sharing class UserHierarchyController {
         return results;
     }
 
-    /**
-     * Re-added for test compatibility: returns all Users in current hierarchy.
-     */
     @AuraEnabled(cacheable=true)
     public static List<User> getUsersInMyHierarchy() {
         Set<Id> roleIds = getEffectiveRoleIds();
-        if (roleIds.isEmpty()) return new List<User>();
 
-        return [SELECT Id, Name, UserRoleId FROM User WHERE UserRoleId IN :roleIds];
+        List<User> users = new List<User>();
+        if (!roleIds.isEmpty()) {
+            users = [SELECT Id, Name, UserRoleId FROM User WHERE UserRoleId IN :roleIds];
+        }
+
+        // Always include self if not already present
+        Boolean found = false;
+        for (User u : users) {
+            if (u.Id == UserInfo.getUserId()) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            users.add([SELECT Id, Name, UserRoleId FROM User WHERE Id = :UserInfo.getUserId()]);
+        }
+
+        return users;
     }
 
     /**
