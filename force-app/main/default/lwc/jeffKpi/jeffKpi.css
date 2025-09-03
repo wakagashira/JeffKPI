@@ -1,0 +1,63 @@
+.filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin: 0 1rem 1rem 1rem;
+}
+.loading { padding: 1rem; }
+
+.section {
+    margin: 0 1rem 0.5rem 1rem;
+    font-size: 0.95rem;
+    color: #16325c;
+    font-weight: 600;
+}
+
+.grid-users {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    padding: 0 1rem 1rem 1rem;
+}
+.user-card {
+    border: 1px solid #d8dde6;
+    border-radius: 0.75rem;
+    background: #ffffff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    padding: 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.user-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+}
+.user-header {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+    color: #16325c;
+    text-align: center;
+    border-bottom: 1px solid #f4f6f9;
+    padding-bottom: 0.5rem;
+}
+.user-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+}
+.metric-box {
+    background: #f4f6f9;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    text-align: center;
+}
+.metric-box strong {
+    display: block;
+    font-size: 1.25rem;
+    color: #000;
+    margin-bottom: 0.25rem;
+}
+.metric-box span {
+    font-size: 0.75rem;
+    color: #444;
+}
