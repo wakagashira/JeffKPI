@@ -4,14 +4,6 @@ public with sharing class JeffKPIController {
         @AuraEnabled public String label;
         public Option(String v, String l) { value = v; label = l; }
     }
-    public class KPIResponse {
-        @AuraEnabled public Decimal totalPipelineAmount;
-        @AuraEnabled public Integer openOppCount;
-        @AuraEnabled public Integer proposedCount;
-        @AuraEnabled public Integer overdueOpps;
-        @AuraEnabled public Integer activities;
-        @AuraEnabled public Decimal winRate;
-    }
     public class FilterOptions {
         @AuraEnabled public List<Option> partners;
         @AuraEnabled public List<Option> users;
@@ -58,22 +50,21 @@ public with sharing class JeffKPIController {
         if (timeframeDays == null) timeframeDays = 7;
         Date cutoffDate = System.today().addDays(-timeframeDays);
 
-        // Users belonging to the partner (if provided)
+        // Resolve partner users
         Set<Id> partnerUsers = new Set<Id>();
         if (partnerName != null) {
-            for (User u : [SELECT Id FROM User WHERE Partner__c = :partnerName AND IsActive = true]) {
+            for (User u : [SELECT Id FROM User WHERE IsActive = true AND Partner__c = :partnerName]) {
                 partnerUsers.add(u.Id);
             }
         }
 
+        // Build owner map from open opps (current pipeline view)
         String baseWhere = ' WHERE IsClosed = false';
         if (!partnerUsers.isEmpty()) baseWhere += ' AND OwnerId IN :partnerUsers';
-
         List<Opportunity> openOpps = Database.query('SELECT Id, OwnerId, Amount, StageName, CloseDate FROM Opportunity' + baseWhere + ' LIMIT 5000');
+
         Map<Id, UserKPI> byOwner = new Map<Id, UserKPI>();
-        Map<Id, Id> oppToOwner = new Map<Id, Id>();
         for (Opportunity o : openOpps) {
-            oppToOwner.put(o.Id, o.OwnerId);
             if (!byOwner.containsKey(o.OwnerId)) {
                 UserKPI k = new UserKPI();
                 k.userId = o.OwnerId; k.userName = null;
@@ -110,7 +101,7 @@ public with sharing class JeffKPIController {
                 }
             }
 
-            // Meetings (Events)
+            // Meetings (Events) count
             List<AggregateResult> eventAggs = [
                 SELECT OwnerId, COUNT(Id) cnt
                 FROM Event
@@ -129,26 +120,39 @@ public with sharing class JeffKPIController {
             }
         }
 
-        // Win rates by owner
-        String winQuery = 'SELECT OwnerId oid, IsWon won, COUNT(Id) cnt FROM Opportunity WHERE IsClosed = true AND CloseDate >= :cutoffDate';
-        if (!partnerUsers.isEmpty()) winQuery += ' AND OwnerId IN :partnerUsers';
+        // Win rates by owner (closed opps in timeframe)
+        String winQuery = 'SELECT OwnerId, IsWon, COUNT(Id) cnt ' +
+                          'FROM Opportunity ' +
+                          'WHERE IsClosed = true AND CloseDate >= :cutoffDate';
+        if (!partnerUsers.isEmpty()) {
+            winQuery += ' AND OwnerId IN :partnerUsers';
+        }
         winQuery += ' GROUP BY OwnerId, IsWon';
         List<AggregateResult> winAggs = Database.query(winQuery);
 
-        Map<Id,Integer> wins = new Map<Id,Integer>(); Map<Id,Integer> totals = new Map<Id,Integer>();
+        Map<Id,Integer> wins = new Map<Id,Integer>(); 
+        Map<Id,Integer> totals = new Map<Id,Integer>();
         for (AggregateResult ag : winAggs) {
-            Id oid = (Id) ag.get('oid'); Boolean won = (Boolean) ag.get('won'); Integer c = (Integer) ag.get('cnt');
-            totals.put(oid, (totals.containsKey(oid)?totals.get(oid):0)+c);
-            if (won) wins.put(oid, (wins.containsKey(oid)?wins.get(oid):0)+c);
-            if (!byOwner.containsKey(oid)) { UserKPI k3 = new UserKPI(); k3.userId=oid; byOwner.put(oid,k3); }
+            Id oid = (Id) ag.get('OwnerId');
+            Boolean won = (Boolean) ag.get('IsWon');
+            Integer c = (Integer) ag.get('cnt');
+            totals.put(oid, (totals.containsKey(oid)?totals.get(oid):0) + c);
+            if (won) wins.put(oid, (wins.containsKey(oid)?wins.get(oid):0) + c);
+            if (!byOwner.containsKey(oid)) {
+                UserKPI empty = new UserKPI();
+                empty.userId = oid; empty.userName = null;
+                empty.totalPipelineAmount=0; empty.openOppCount=0; empty.proposedCount=0; empty.overdueOpps=0; empty.activities=0;
+                empty.callCount=0; empty.emailCount=0; empty.taskCount=0; empty.meetingCount=0; empty.winRate=0;
+                byOwner.put(oid, empty);
+            }
         }
         for (Id oid : byOwner.keySet()) {
             Integer t = totals.containsKey(oid)?totals.get(oid):0;
             Integer w = wins.containsKey(oid)?wins.get(oid):0;
-            byOwner.get(oid).winRate = t>0 ? ((Decimal)w*100)/(Decimal)t : 0;
+            byOwner.get(oid).winRate = t>0 ? (((Decimal)w) * 100) / (Decimal)t : 0;
         }
 
-        // Fill in user names
+        // Fill user names
         if (!byOwner.isEmpty()) {
             for (User u : [SELECT Id, Name FROM User WHERE Id IN :byOwner.keySet()]) {
                 byOwner.get(u.Id).userName = u.Name;

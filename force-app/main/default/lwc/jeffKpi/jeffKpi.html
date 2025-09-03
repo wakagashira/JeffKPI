@@ -1,1 +1,53 @@
-<template><lightning-card title='Jeff KPI v3.6.7'></lightning-card></template>
+<template>
+    <lightning-card title="Jeff KPI v3.6.8">
+        <div class="filters">
+            <lightning-combobox
+                label="Filter by Partner"
+                value={selectedPartner}
+                options={partnerOptions}
+                placeholder="All Partners"
+                onchange={handlePartnerChange}>
+            </lightning-combobox>
+            <lightning-combobox
+                label="Filter by User"
+                value={selectedUser}
+                options={userOptions}
+                placeholder="All Users"
+                onchange={handleUserChange}>
+            </lightning-combobox>
+            <lightning-combobox
+                label="Timeframe"
+                value={timeframeDays}
+                options={timeframeOptions}
+                onchange={handleTimeframeChange}>
+            </lightning-combobox>
+        </div>
+
+        <template if:true={loading}>
+            <div class="loading">Loading...</div>
+        </template>
+
+        <template if:false={loading}>
+            <h3 class="section">User Metrics</h3>
+            <div class="grid-users">
+                <template for:each={userKpisToShow} for:item="u">
+                    <div key={u.userId} class="user-card">
+                        <div class="user-header">{u.userName}</div>
+                        <div class="user-grid">
+                            <div class="metric-box"><strong>{u.totalPipelineAmount}</strong><span>Pipeline</span></div>
+                            <div class="metric-box"><strong>{u.openOppCount}</strong><span>Open Opps</span></div>
+                            <div class="metric-box"><strong>{u.proposedCount}</strong><span>Proposed</span></div>
+                            <div class="metric-box"><strong>{u.overdueOpps}</strong><span>Overdue</span></div>
+                            <div class="metric-box"><strong>{u.callCount}</strong><span>Calls</span></div>
+                            <div class="metric-box"><strong>{u.emailCount}</strong><span>Emails</span></div>
+                            <div class="metric-box"><strong>{u.taskCount}</strong><span>Tasks</span></div>
+                            <div class="metric-box"><strong>{u.meetingCount}</strong><span>Meetings</span></div>
+                            <div class="metric-box"><strong>{u.activities}</strong><span>Total Activities</span></div>
+                            <div class="metric-box"><strong>{u.winRate}%</strong><span>Win Rate</span></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </lightning-card>
+</template>

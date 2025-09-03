@@ -1,16 +1,16 @@
-# JeffKPI v3.6.7 — Test Fix
+# JeffKPI v3.6.8 — Full Working Bundle for Production
 
-**What's fixed**
-- Updated JeffKPIControllerTest to populate required field `Opportunity_Type__c` when creating test Opportunities.
-- Prevents REQUIRED_FIELD_MISSING DmlException.
-
-**What's in this package**
-- Apex: JeffKPIController and JeffKPIControllerTest (fixed).
-- LWC: jeffKpi (HTML/JS/CSS/Meta with filters + cards).
+**What's included**
+- Apex: JeffKPIController (clean dynamic SOQL; timeframe on activities + wins) and JeffKPIControllerTest (with Opportunity_Type__c).
+- LWC: jeffKpi (HTML/JS/CSS/Meta) — card layout, professional styling; Partner/User/Timeframe filters; fixed user filter.
 - Permission Set: JeffKPI (Apex class access).
 - Manifest & Project files.
 
 **Deploy**
-sf org login web --alias CreteSandbox --instance-url https://test.salesforce.com
-sf project deploy start --source-dir force-app --target-org CreteSandbox
-sf permset assign --name JeffKPI --target-org CreteSandbox
+sf org login web --alias Prod --instance-url https://login.salesforce.com
+sf project deploy start --source-dir force-app --target-org Prod
+sf permset assign --name JeffKPI --target-org Prod
+
+**After deploy**
+- In Lightning App Builder, add **Jeff KPI** to Home/App/Record Page.
+- If it doesn't appear, hard refresh and clear cached Lightning resources (Cmd+Shift+R / Ctrl+F5).
