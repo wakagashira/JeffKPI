@@ -50,6 +50,15 @@ public class UserHierarchyControllerTest {
             List<UserHierarchyController.UserActivitySummary> results = UserHierarchyController.getUserActivitySummary();
             Test.stopTest();
             System.assert(!results.isEmpty(), 'Normal user should see hierarchy data');
+
+            Boolean found = false;
+            for (UserHierarchyController.UserActivitySummary r : results) {
+                if (r.userId == UserInfo.getUserId()) {
+                    found = true;
+                    break;
+                }
+            }
+            System.assertEquals(true, found, 'Results should include the running user');
         }
     }
 
@@ -77,6 +86,15 @@ public class UserHierarchyControllerTest {
             List<UserHierarchyController.UserActivitySummary> results = UserHierarchyController.getUserActivitySummary();
             Test.stopTest();
             System.assert(results.size() >= 2, 'SysAdmin should see all users, not just role hierarchy');
+
+            Boolean found = false;
+            for (UserHierarchyController.UserActivitySummary r : results) {
+                if (r.userId == UserInfo.getUserId()) {
+                    found = true;
+                    break;
+                }
+            }
+            System.assertEquals(true, found, 'Results should include the running SysAdmin');
         }
     }
 
@@ -88,6 +106,15 @@ public class UserHierarchyControllerTest {
             List<User> users = UserHierarchyController.getUsersInMyHierarchy();
             Test.stopTest();
             System.assert(!users.isEmpty(), 'Hierarchy users should be returned for normal user');
+
+            Boolean found = false;
+            for (User u : users) {
+                if (u.Id == UserInfo.getUserId()) {
+                    found = true;
+                    break;
+                }
+            }
+            System.assertEquals(true, found, 'Users should include the running user');
         }
     }
 
@@ -115,6 +142,15 @@ public class UserHierarchyControllerTest {
             List<User> users = UserHierarchyController.getUsersInMyHierarchy();
             Test.stopTest();
             System.assert(users.size() >= 2, 'SysAdmin should see all users across org');
+
+            Boolean found = false;
+            for (User u : users) {
+                if (u.Id == UserInfo.getUserId()) {
+                    found = true;
+                    break;
+                }
+            }
+            System.assertEquals(true, found, 'Users should include the running SysAdmin');
         }
     }
 }
