@@ -1,13 +1,12 @@
-# JeffKPI v3.6.6 — User Filter Fix
+# JeffKPI v3.6.7 — Test Fix
 
 **What's fixed**
-- User filter now properly shows only the selected user's card.
-- Added type coercion (String comparison) so Id values match.
-- Added `loadAll()` on user change to reload metrics.
+- Updated JeffKPIControllerTest to populate required field `Opportunity_Type__c` when creating test Opportunities.
+- Prevents REQUIRED_FIELD_MISSING DmlException.
 
 **What's in this package**
-- LWC: jeffKpi (HTML/JS/CSS/Meta) with corrected user filter logic.
-- Apex: JeffKPIController and JeffKPIControllerTest.
+- Apex: JeffKPIController and JeffKPIControllerTest (fixed).
+- LWC: jeffKpi (HTML/JS/CSS/Meta with filters + cards).
 - Permission Set: JeffKPI (Apex class access).
 - Manifest & Project files.
 

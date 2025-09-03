@@ -3,12 +3,12 @@
     {
       "path": "force-app",
       "default": true,
-      "package": "JeffKPI_v3_6_6",
-      "versionName": "ver 3.6.6",
-      "versionNumber": "3.6.6.NEXT"
+      "package": "JeffKPI_v3_6_7",
+      "versionName": "ver 3.6.7",
+      "versionNumber": "3.6.7.NEXT"
     }
   ],
-  "name": "JeffKPI_v3_6_6",
+  "name": "JeffKPI_v3_6_7",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "61.0"
