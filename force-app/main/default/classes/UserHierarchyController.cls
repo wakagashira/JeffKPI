@@ -5,50 +5,70 @@ public with sharing class UserHierarchyController {
         @AuraEnabled public String name;
         @AuraEnabled public Integer callCount;
         @AuraEnabled public Integer meetingCount;
+        @AuraEnabled public Integer emailCount;
         @AuraEnabled public String partnerName;
     }
 
+    public class OpportunityMetrics {
+        @AuraEnabled public Decimal pipelineValue;
+        @AuraEnabled public Decimal averageDealSize;
+        @AuraEnabled public Decimal conversionRate;
+        @AuraEnabled public Integer closedWonCount;
+        @AuraEnabled public Integer createdCount;
+    }
+
+    private static Boolean isSysAdmin() {
+        return [SELECT Name FROM Profile WHERE Id = :UserInfo.getProfileId() LIMIT 1].Name == 'System Administrator';
+    }
+
+    private static Map<String, String> timeframeLiterals() {
+        return new Map<String, String>{
+            'Today' => 'TODAY',
+            'Yesterday' => 'YESTERDAY',
+            'ThisWeek' => 'THIS_WEEK',
+            'LastWeek' => 'LAST_WEEK',
+            'Last7Days' => 'LAST_N_DAYS:7',
+            'ThisMonth' => 'THIS_MONTH',
+            'LastMonth' => 'LAST_MONTH',
+            'ThisQuarter' => 'THIS_QUARTER',
+            'LastQuarter' => 'LAST_QUARTER',
+            'ThisYear' => 'THIS_YEAR',
+            'LastYear' => 'LAST_YEAR'
+        };
+    }
+
     @AuraEnabled(cacheable=true)
-    public static List<UserActivitySummary> getUserActivitySummary() {
-        Id myRoleId = UserInfo.getUserRoleId();
-        if (myRoleId == null) {
-            return new List<UserActivitySummary>();
+    public static List<UserActivitySummary> getUserActivitySummary(String timeframe) {
+        Map<Id, User> usersById;
+        if (isSysAdmin()) {
+            usersById = new Map<Id, User>([SELECT Id, Name, Partner__c FROM User WHERE IsActive = true]);
+        } else {
+            Id myRoleId = UserInfo.getUserRoleId();
+            if (myRoleId == null) return new List<UserActivitySummary>();
+            Set<Id> roleIds = new Set<Id>();
+            collectChildRoles(myRoleId, roleIds);
+            roleIds.add(myRoleId);
+            usersById = new Map<Id, User>([SELECT Id, Name, Partner__c FROM User WHERE UserRoleId IN :roleIds AND IsActive = true]);
         }
-
-        Set<Id> roleIds = new Set<Id>();
-        collectChildRoles(myRoleId, roleIds);
-        roleIds.add(myRoleId);
-
-        Map<Id, User> usersById = new Map<Id, User>(
-            [SELECT Id, Name, Partner__c
-             FROM User
-             WHERE UserRoleId IN :roleIds AND IsActive = true]
-        );
         if (usersById.isEmpty()) return new List<UserActivitySummary>();
 
-        Date startDateTasks = Date.today().addDays(-30);
-        Datetime startDateEvents = System.now().addDays(-30);
+        String literal = timeframeLiterals().get(timeframe);
+        if (String.isBlank(literal)) literal = 'LAST_N_DAYS:30';
+
+        Set<Id> userIds = usersById.keySet();
 
         Map<Id, Integer> callCounts = new Map<Id, Integer>();
-        for (AggregateResult ar : [
-            SELECT OwnerId ownerId, COUNT(Id) cnt
-            FROM Task
-            WHERE OwnerId IN :usersById.keySet()
-            AND Type = 'Call'
-            AND ActivityDate >= :startDateTasks
-            GROUP BY OwnerId
-        ]) {
+        for (AggregateResult ar : Database.query('SELECT OwnerId ownerId, COUNT(Id) cnt FROM Task WHERE OwnerId IN :userIds AND Type = \'Call\' AND ActivityDate = ' + literal + ' GROUP BY OwnerId')) {
             callCounts.put((Id)ar.get('ownerId'), (Integer)ar.get('cnt'));
         }
 
+        Map<Id, Integer> emailCounts = new Map<Id, Integer>();
+        for (AggregateResult ar : Database.query('SELECT OwnerId ownerId, COUNT(Id) cnt FROM Task WHERE OwnerId IN :userIds AND Type = \'Email\' AND ActivityDate = ' + literal + ' GROUP BY OwnerId')) {
+            emailCounts.put((Id)ar.get('ownerId'), (Integer)ar.get('cnt'));
+        }
+
         Map<Id, Integer> meetingCounts = new Map<Id, Integer>();
-        for (AggregateResult ar : [
-            SELECT OwnerId ownerId, COUNT(Id) cnt
-            FROM Event
-            WHERE OwnerId IN :usersById.keySet()
-            AND StartDateTime >= :startDateEvents
-            GROUP BY OwnerId
-        ]) {
+        for (AggregateResult ar : Database.query('SELECT OwnerId ownerId, COUNT(Id) cnt FROM Event WHERE OwnerId IN :userIds AND StartDateTime = ' + literal + ' GROUP BY OwnerId')) {
             meetingCounts.put((Id)ar.get('ownerId'), (Integer)ar.get('cnt'));
         }
 
@@ -59,6 +79,7 @@ public with sharing class UserHierarchyController {
             uas.name = u.Name;
             uas.partnerName = u.Partner__c;
             uas.callCount = callCounts.containsKey(u.Id) ? callCounts.get(u.Id) : 0;
+            uas.emailCount = emailCounts.containsKey(u.Id) ? emailCounts.get(u.Id) : 0;
             uas.meetingCount = meetingCounts.containsKey(u.Id) ? meetingCounts.get(u.Id) : 0;
             results.add(uas);
         }
@@ -66,29 +87,58 @@ public with sharing class UserHierarchyController {
     }
 
     @AuraEnabled(cacheable=true)
-    public static List<User> getUsersInMyHierarchy() {
-        Id myRoleId = UserInfo.getUserRoleId();
-        if (myRoleId == null) {
-            return new List<User>();
+    public static OpportunityMetrics getOpportunityMetrics(String timeframe) {
+        OpportunityMetrics m = new OpportunityMetrics();
+        m.pipelineValue = 0; m.averageDealSize = 0; m.conversionRate = 0; m.closedWonCount = 0; m.createdCount = 0;
+
+        Set<Id> userIds;
+        if (isSysAdmin()) {
+            userIds = new Map<Id, User>([SELECT Id FROM User WHERE IsActive = true]).keySet();
+        } else {
+            Id myRoleId = UserInfo.getUserRoleId();
+            if (myRoleId == null) return m;
+            Set<Id> roleIds = new Set<Id>();
+            collectChildRoles(myRoleId, roleIds);
+            roleIds.add(myRoleId);
+            userIds = new Map<Id, User>([SELECT Id FROM User WHERE UserRoleId IN :roleIds AND IsActive = true]).keySet();
+        }
+        if (userIds.isEmpty()) return m;
+
+        String literal = timeframeLiterals().get(timeframe);
+        if (String.isBlank(literal)) literal = 'LAST_N_DAYS:30';
+
+        AggregateResult[] pipelineAr = Database.query('SELECT SUM(Amount) sumAmt FROM Opportunity WHERE OwnerId IN :userIds AND IsClosed = false AND CloseDate = ' + literal);
+        if (!pipelineAr.isEmpty() && pipelineAr[0].get('sumAmt') != null) m.pipelineValue = (Decimal)pipelineAr[0].get('sumAmt');
+
+        AggregateResult[] wonAr = Database.query('SELECT COUNT(Id) cnt, SUM(Amount) sumAmt FROM Opportunity WHERE OwnerId IN :userIds AND IsWon = true AND CloseDate = ' + literal);
+        if (!wonAr.isEmpty()) {
+            m.closedWonCount = (Integer)(wonAr[0].get('cnt') == null ? 0 : wonAr[0].get('cnt'));
+            Decimal wonSum = (Decimal)(wonAr[0].get('sumAmt') == null ? 0 : wonAr[0].get('sumAmt'));
+            if (m.closedWonCount > 0) m.averageDealSize = wonSum / m.closedWonCount;
         }
 
+        AggregateResult[] createdAr = Database.query('SELECT COUNT(Id) cnt FROM Opportunity WHERE OwnerId IN :userIds AND CreatedDate = ' + literal);
+        if (!createdAr.isEmpty() && createdAr[0].get('cnt') != null) m.createdCount = (Integer)createdAr[0].get('cnt');
+
+        if (m.createdCount > 0) m.conversionRate = (Decimal)m.closedWonCount * 100 / m.createdCount;
+        return m;
+    }
+
+    @AuraEnabled(cacheable=true)
+    public static List<User> getUsersInMyHierarchy() {
+        if (isSysAdmin()) {
+            return [SELECT Id, Name, FirstName, LastName, Email, Title, UserRole.Name, Partner__c FROM User WHERE IsActive = true ORDER BY Name];
+        }
+        Id myRoleId = UserInfo.getUserRoleId();
+        if (myRoleId == null) return new List<User>();
         Set<Id> roleIds = new Set<Id>();
         collectChildRoles(myRoleId, roleIds);
         roleIds.add(myRoleId);
-
-        return [
-            SELECT Id, Name, FirstName, LastName, Email, Title, UserRole.Name
-            FROM User
-            WHERE UserRoleId IN :roleIds
-            AND IsActive = true
-            ORDER BY Name
-        ];
+        return [SELECT Id, Name, FirstName, LastName, Email, Title, UserRole.Name, Partner__c FROM User WHERE UserRoleId IN :roleIds AND IsActive = true ORDER BY Name];
     }
 
     private static void collectChildRoles(Id parentRoleId, Set<Id> roleIds) {
-        for (UserRole ur : [
-            SELECT Id FROM UserRole WHERE ParentRoleId = :parentRoleId
-        ]) {
+        for (UserRole ur : [SELECT Id FROM UserRole WHERE ParentRoleId = :parentRoleId]) {
             if (!roleIds.contains(ur.Id)) {
                 roleIds.add(ur.Id);
                 collectChildRoles(ur.Id, roleIds);
