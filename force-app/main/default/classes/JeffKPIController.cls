@@ -1,163 +1,85 @@
+// v4.1.6 — Jeff KPI Controller (no '%' operator; safe decimal calc)
 public with sharing class JeffKPIController {
-    public class Option {
-        @AuraEnabled public String value;
-        @AuraEnabled public String label;
-        public Option(String v, String l) { value = v; label = l; }
-    }
-    public class FilterOptions {
-        @AuraEnabled public List<Option> partners;
-        @AuraEnabled public List<Option> users;
-    }
-    public class UserKPI {
+    public class KPI {
         @AuraEnabled public Id userId;
         @AuraEnabled public String userName;
-        @AuraEnabled public Decimal totalPipelineAmount;
-        @AuraEnabled public Integer openOppCount;
-        @AuraEnabled public Integer proposedCount;
+        @AuraEnabled public Integer openOpps;
         @AuraEnabled public Integer overdueOpps;
-        @AuraEnabled public Integer activities;
-        @AuraEnabled public Decimal winRate;
-        @AuraEnabled public Integer callCount;
-        @AuraEnabled public Integer emailCount;
-        @AuraEnabled public Integer taskCount;
-        @AuraEnabled public Integer meetingCount;
+        @AuraEnabled public Integer wonOpps;
+        @AuraEnabled public Integer lostOpps;
+        @AuraEnabled public Integer totalOpps;
+        @AuraEnabled public Decimal winRate; // percentage (0-100), 0 scale
     }
 
     @AuraEnabled(cacheable=true)
-    public static FilterOptions getFilterOptions() {
-        FilterOptions fo = new FilterOptions();
-        fo.partners = new List<Option>();
-        fo.users = new List<Option>();
+    public static List<KPI> getKPIs(Date startDate, Date endDate, Id userId) {
+        if (startDate == null) startDate = System.today().addDays(-90);
+        if (endDate == null) endDate = System.today();
 
-        // Partner options from User.Partner__c (distinct, active users only)
-        Set<String> partnerNames = new Set<String>();
-        for (User u : [SELECT Partner__c FROM User WHERE Partner__c != null AND IsActive = true]) {
-            partnerNames.add(u.Partner__c);
-        }
-        for (String pname : partnerNames) {
-            fo.partners.add(new Option(pname, pname));
+        List<Id> ownerIds = new List<Id>();
+        if (userId != null) {
+            ownerIds.add(userId);
+        } else {
+            ownerIds.add(UserInfo.getUserId());
         }
 
-        // User options (active users)
-        for (User u : [SELECT Id, Name FROM User WHERE IsActive = true ORDER BY Name LIMIT 2000]) {
-            fo.users.add(new Option(u.Id, u.Name));
-        }
-        return fo;
-    }
+        Map<Id, KPI> byOwner = new Map<Id, KPI>();
+        Map<Id, User> uMap = new Map<Id, User>([SELECT Id, Name FROM User WHERE Id IN :ownerIds]);
 
-    @AuraEnabled(cacheable=true)
-    public static List<UserKPI> getUserKpis(String partnerName, Integer timeframeDays) {
-        if (timeframeDays == null) timeframeDays = 7;
-        Date cutoffDate = System.today().addDays(-timeframeDays);
-
-        // Resolve partner users
-        Set<Id> partnerUsers = new Set<Id>();
-        if (partnerName != null) {
-            for (User u : [SELECT Id FROM User WHERE IsActive = true AND Partner__c = :partnerName]) {
-                partnerUsers.add(u.Id);
-            }
+        for (Id oid : ownerIds) {
+            KPI k = new KPI();
+            k.userId = oid;
+            k.userName = uMap.containsKey(oid) ? uMap.get(oid).Name : String.valueOf(oid);
+            k.openOpps = 0;
+            k.overdueOpps = 0;
+            k.wonOpps = 0;
+            k.lostOpps = 0;
+            k.totalOpps = 0;
+            k.winRate = 0;
+            byOwner.put(oid, k);
         }
 
-        // Build owner map from open opps (current pipeline view)
-        String baseWhere = ' WHERE IsClosed = false';
-        if (!partnerUsers.isEmpty()) baseWhere += ' AND OwnerId IN :partnerUsers';
-        List<Opportunity> openOpps = Database.query('SELECT Id, OwnerId, Amount, StageName, CloseDate FROM Opportunity' + baseWhere + ' LIMIT 5000');
+        List<Opportunity> opps = [
+            SELECT Id, OwnerId, IsClosed, IsWon, CloseDate
+            FROM Opportunity
+            WHERE OwnerId IN :ownerIds
+            AND CloseDate >= :startDate
+            AND CloseDate <= :endDate
+        ];
 
-        Map<Id, UserKPI> byOwner = new Map<Id, UserKPI>();
-        for (Opportunity o : openOpps) {
-            if (!byOwner.containsKey(o.OwnerId)) {
-                UserKPI k = new UserKPI();
-                k.userId = o.OwnerId; k.userName = null;
-                k.totalPipelineAmount=0; k.openOppCount=0; k.proposedCount=0; k.overdueOpps=0; k.activities=0;
-                k.callCount=0; k.emailCount=0; k.taskCount=0; k.meetingCount=0; k.winRate=0;
-                byOwner.put(o.OwnerId, k);
-            }
-            UserKPI ku = byOwner.get(o.OwnerId);
-            ku.openOppCount++;
-            if (o.Amount != null) ku.totalPipelineAmount += o.Amount;
-            if (o.StageName == 'Proposed' || o.StageName == 'Proposal / Audit Generation') ku.proposedCount++;
-            if (o.CloseDate != null && o.CloseDate < Date.today()) ku.overdueOpps++;
-        }
-
-        // Aggregate tasks by subtype across owners found above
-        if (!byOwner.isEmpty()) {
-            List<AggregateResult> taskAggs = [
-                SELECT OwnerId, TaskSubtype, COUNT(Id) cnt
-                FROM Task
-                WHERE ActivityDate >= :cutoffDate
-                AND OwnerId IN :byOwner.keySet()
-                GROUP BY OwnerId, TaskSubtype
-            ];
-            for (AggregateResult ar : taskAggs) {
-                Id ownerId = (Id) ar.get('OwnerId');
-                String subtype = (String) ar.get('TaskSubtype');
-                Integer c = (Integer) ar.get('cnt');
-                if (byOwner.containsKey(ownerId)) {
-                    UserKPI k = byOwner.get(ownerId);
-                    if (subtype == 'Call') k.callCount += c;
-                    else if (subtype == 'Email') k.emailCount += c;
-                    else k.taskCount += c;
-                    k.activities += c;
+        Date today = System.today();
+        for (Opportunity o : opps) {
+            KPI k = byOwner.get(o.OwnerId);
+            if (k == null) continue;
+            k.totalOpps++;
+            if (!o.IsClosed) {
+                k.openOpps++;
+                if (o.CloseDate != null && o.CloseDate < today) {
+                    k.overdueOpps++;
                 }
-            }
-
-            // Meetings (Events) count
-            List<AggregateResult> eventAggs = [
-                SELECT OwnerId, COUNT(Id) cnt
-                FROM Event
-                WHERE ActivityDate >= :cutoffDate
-                AND OwnerId IN :byOwner.keySet()
-                GROUP BY OwnerId
-            ];
-            for (AggregateResult ar : eventAggs) {
-                Id ownerId = (Id) ar.get('OwnerId');
-                Integer c = (Integer) ar.get('cnt');
-                if (byOwner.containsKey(ownerId)) {
-                    UserKPI k = byOwner.get(ownerId);
-                    k.meetingCount += c;
-                    k.activities += c;
+            } else {
+                if (o.IsWon) {
+                    k.wonOpps++;
+                } else {
+                    k.lostOpps++;
                 }
             }
         }
 
-        // Win rates by owner (closed opps in timeframe)
-        String winQuery = 'SELECT OwnerId, IsWon, COUNT(Id) cnt ' +
-                          'FROM Opportunity ' +
-                          'WHERE IsClosed = true AND CloseDate >= :cutoffDate';
-        if (!partnerUsers.isEmpty()) {
-            winQuery += ' AND OwnerId IN :partnerUsers';
-        }
-        winQuery += ' GROUP BY OwnerId, IsWon';
-        List<AggregateResult> winAggs = Database.query(winQuery);
-
-        Map<Id,Integer> wins = new Map<Id,Integer>(); 
-        Map<Id,Integer> totals = new Map<Id,Integer>();
-        for (AggregateResult ag : winAggs) {
-            Id oid = (Id) ag.get('OwnerId');
-            Boolean won = (Boolean) ag.get('IsWon');
-            Integer c = (Integer) ag.get('cnt');
-            totals.put(oid, (totals.containsKey(oid)?totals.get(oid):0) + c);
-            if (won) wins.put(oid, (wins.containsKey(oid)?wins.get(oid):0) + c);
-            if (!byOwner.containsKey(oid)) {
-                UserKPI empty = new UserKPI();
-                empty.userId = oid; empty.userName = null;
-                empty.totalPipelineAmount=0; empty.openOppCount=0; empty.proposedCount=0; empty.overdueOpps=0; empty.activities=0;
-                empty.callCount=0; empty.emailCount=0; empty.taskCount=0; empty.meetingCount=0; empty.winRate=0;
-                byOwner.put(oid, empty);
-            }
-        }
         for (Id oid : byOwner.keySet()) {
-            Integer t = totals.containsKey(oid)?totals.get(oid):0;
-            Integer w = wins.containsKey(oid)?wins.get(oid):0;
-            byOwner.get(oid).winRate = t>0 ? (((Decimal)w) * 100) / (Decimal)t : 0;
-        }
-
-        // Fill user names
-        if (!byOwner.isEmpty()) {
-            for (User u : [SELECT Id, Name FROM User WHERE Id IN :byOwner.keySet()]) {
-                byOwner.get(u.Id).userName = u.Name;
+            KPI k = byOwner.get(oid);
+            if (k.totalOpps > 0) {
+                // Safe decimal division -> percentage
+                Decimal wonD = Decimal.valueOf(k.wonOpps);
+                Decimal totD = Decimal.valueOf(k.totalOpps);
+                k.winRate = (wonD.divide(totD, 6)) * 100;
+                // normalize scale to whole number for display thresholds
+                k.winRate = k.winRate.setScale(0, RoundingMode.HALF_UP);
+            } else {
+                k.winRate = 0;
             }
         }
-        return new List<UserKPI>(byOwner.values());
+
+        return new List<KPI>(byOwner.values());
     }
 }

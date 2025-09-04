@@ -1,53 +1,57 @@
 <template>
-    <lightning-card title="Jeff KPI v3.6.8">
-        <div class="filters">
-            <lightning-combobox
-                label="Filter by Partner"
-                value={selectedPartner}
-                options={partnerOptions}
-                placeholder="All Partners"
-                onchange={handlePartnerChange}>
-            </lightning-combobox>
-            <lightning-combobox
-                label="Filter by User"
-                value={selectedUser}
-                options={userOptions}
-                placeholder="All Users"
-                onchange={handleUserChange}>
-            </lightning-combobox>
-            <lightning-combobox
-                label="Timeframe"
-                value={timeframeDays}
-                options={timeframeOptions}
-                onchange={handleTimeframeChange}>
-            </lightning-combobox>
-        </div>
+    <div class="filters slds-p-around_small">
+        <lightning-layout horizontal-align="spread">
+            <lightning-layout-item flexibility="auto">
+                <lightning-input type="date" label="Start date" value={startDateStr} onchange={handleStart}></lightning-input>
+            </lightning-layout-item>
+            <lightning-layout-item flexibility="auto">
+                <lightning-input type="date" label="End date" value={endDateStr} onchange={handleEnd}></lightning-input>
+            </lightning-layout-item>
+            <lightning-layout-item flexibility="auto">
+                <lightning-button label="Refresh" variant="brand" onclick={refresh}></lightning-button>
+            </lightning-layout-item>
+        </lightning-layout>
+    </div>
 
-        <template if:true={loading}>
-            <div class="loading">Loading...</div>
-        </template>
-
-        <template if:false={loading}>
-            <h3 class="section">User Metrics</h3>
-            <div class="grid-users">
-                <template for:each={userKpisToShow} for:item="u">
-                    <div key={u.userId} class="user-card">
-                        <div class="user-header">{u.userName}</div>
-                        <div class="user-grid">
-                            <div class="metric-box"><strong>{u.totalPipelineAmount}</strong><span>Pipeline</span></div>
-                            <div class="metric-box"><strong>{u.openOppCount}</strong><span>Open Opps</span></div>
-                            <div class="metric-box"><strong>{u.proposedCount}</strong><span>Proposed</span></div>
-                            <div class="metric-box"><strong>{u.overdueOpps}</strong><span>Overdue</span></div>
-                            <div class="metric-box"><strong>{u.callCount}</strong><span>Calls</span></div>
-                            <div class="metric-box"><strong>{u.emailCount}</strong><span>Emails</span></div>
-                            <div class="metric-box"><strong>{u.taskCount}</strong><span>Tasks</span></div>
-                            <div class="metric-box"><strong>{u.meetingCount}</strong><span>Meetings</span></div>
-                            <div class="metric-box"><strong>{u.activities}</strong><span>Total Activities</span></div>
-                            <div class="metric-box"><strong>{u.winRate}%</strong><span>Win Rate</span></div>
+    <template if:true={kpis}>
+        <div class="card-grid">
+            <template for:each={kpis} for:item="u">
+                <article key={u.userId} class="kpi-card">
+                    <header class="kpi-header">
+                        <span class="user">{u.userName}</span>
+                    </header>
+                    <div class="kpi-body">
+                        <div class="metric">
+                            <span class="label">Total</span>
+                            <span class="value">{u.totalOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Open</span>
+                            <span class="value">{u.openOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Overdue</span>
+                            <span class={u.overdueClass}>{u.overdueOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Won</span>
+                            <span class="value">{u.wonOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Lost</span>
+                            <span class="value">{u.lostOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Win Rate</span>
+                            <span class={u.winRateClass}>{u.winRate}%</span>
                         </div>
                     </div>
-                </template>
-            </div>
-        </template>
-    </lightning-card>
+                </article>
+            </template>
+        </div>
+    </template>
+
+    <template if:true={errorMessage}>
+        <div class="slds-text-color_error slds-p-around_small">{errorMessage}</div>
+    </template>
 </template>
