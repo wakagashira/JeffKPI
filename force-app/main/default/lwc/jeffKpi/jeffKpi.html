@@ -1,0 +1,57 @@
+<template>
+    <div class="filters slds-p-around_small">
+        <lightning-layout horizontal-align="spread">
+            <lightning-layout-item flexibility="auto">
+                <lightning-input type="date" label="Start date" value={startDateStr} onchange={handleStart}></lightning-input>
+            </lightning-layout-item>
+            <lightning-layout-item flexibility="auto">
+                <lightning-input type="date" label="End date" value={endDateStr} onchange={handleEnd}></lightning-input>
+            </lightning-layout-item>
+            <lightning-layout-item flexibility="auto">
+                <lightning-button label="Refresh" variant="brand" onclick={refresh}></lightning-button>
+            </lightning-layout-item>
+        </lightning-layout>
+    </div>
+
+    <template if:true={kpis}>
+        <div class="card-grid">
+            <template for:each={kpis} for:item="u">
+                <article key={u.userId} class="kpi-card">
+                    <header class="kpi-header">
+                        <span class="user">{u.userName}</span>
+                    </header>
+                    <div class="kpi-body">
+                        <div class="metric">
+                            <span class="label">Total</span>
+                            <span class="value">{u.totalOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Open</span>
+                            <span class="value">{u.openOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Overdue</span>
+                            <span class={u.overdueClass}>{u.overdueOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Won</span>
+                            <span class="value">{u.wonOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Lost</span>
+                            <span class="value">{u.lostOpps}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Win Rate</span>
+                            <span class={u.winRateClass}>{u.winRate}%</span>
+                        </div>
+                    </div>
+                </article>
+            </template>
+        </div>
+    </template>
+
+    <template if:true={errorMessage}>
+        <div class="slds-text-color_error slds-p-around_small">{errorMessage}</div>
+    </template>
+</template>
