@@ -1,31 +1,20 @@
 <template>
-    <lightning-card title="KPIs">
-        <div class="slds-p-around_medium slds-grid slds-wrap slds-grid_vertical-align-center slds-grid_align-spread">
-            <lightning-combobox
-                name="timeframe"
-                label="Timeframe"
-                value={timeframe}
-                options={timeframeOptions}
-                onchange={handleTimeframe}>
-            </lightning-combobox>
-
-            <lightning-combobox
-                name="owner"
-                label="Owner"
-                value={ownerId}
-                options={ownerOptions}
-                placeholder="All Owners"
-                onchange={handleOwner}>
-            </lightning-combobox>
-
-            <lightning-input type="number" label="Top N" value={topN} min="1" max="100" onchange={handleTopN}></lightning-input>
-
-            <lightning-button label="Refresh" onclick={refresh}></lightning-button>
+<lightning-card title="KPIs">
+  <div class="slds-grid slds-wrap">
+    <template for:each={rows} for:item="u">
+      <div key={u.userId} class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 slds-p-around_small">
+        <div class="slds-card slds-p-around_small">
+          <div class="slds-text-heading_small">{u.userName}</div>
+          <p>Partner: {u.partner}</p>
+          <p>Pipeline: {u.pipeline}</p>
+          <p>Open Opps: {u.openCount}</p>
+          <p class={u.overdueClass}>Overdue: {u.overdueCount}</p>
+          <p>Proposed: {u.proposedCount}</p>
+          <p>Won: {u.wonCount} (${u.wonAmount})</p>
+          <p class={u.winRateClass}>Win Rate: {u.winRate}%</p>
         </div>
-
-        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
-            <lightning-datatable key-field="userId" data={rows} columns={columns} hide-checkbox-column>
-            </lightning-datatable>
-        </div>
-    </lightning-card>
+      </div>
+    </template>
+  </div>
+</lightning-card>
 </template>

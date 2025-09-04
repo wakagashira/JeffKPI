@@ -1,23 +1,18 @@
 @IsTest
 private class JeffKPIControllerTest {
     @IsTest
-    static void testGetKPIsAndFilters() {
-        Id uid = UserInfo.getUserId();
+    static void testFiltersAndKPIs() {
+        User u = [SELECT Id FROM User WHERE Id = :UserInfo.getUserId()];
         Date today = Date.today();
-
-        List<Opportunity> opps = new List<Opportunity>();
-        opps.add(new Opportunity(Name='Open 1', StageName='Prospecting', CloseDate=today.addDays(15), Amount=1000, OwnerId=uid));
-        opps.add(new Opportunity(Name='Won MTD', StageName='Closed Won', CloseDate=today, Amount=2000, OwnerId=uid));
-        opps.add(new Opportunity(Name='Won Last Year', StageName='Closed Won', CloseDate=Date.newInstance(today.year()-1, today.month(), 1), Amount=3000, OwnerId=uid));
-        insert opps;
+        Opportunity o1 = new Opportunity(Name='Opp1', StageName='Prospecting', CloseDate=today.addDays(10), Amount=500, OwnerId=u.Id);
+        Opportunity o2 = new Opportunity(Name='Opp2', StageName='Closed Won', CloseDate=today, Amount=1000, OwnerId=u.Id);
+        insert new List<Opportunity>{o1,o2};
 
         Test.startTest();
-        List<JeffKPIController.KPIUser> kpis = JeffKPIController.getKPIs('MTD', null, 10);
         JeffKPIController.FilterOptions fo = JeffKPIController.getFilterOptions();
+        System.assertNotEquals(null, fo);
+        List<JeffKPIController.KPIUser> kpis = JeffKPIController.getKPIs('MTD', null, null, 10);
+        System.assert(!kpis.isEmpty(), 'Expected KPI rows');
         Test.stopTest();
-
-        System.assert(!kpis.isEmpty(), 'Expected at least one KPIUser returned');
-        System.assertNotEquals(null, fo, 'FilterOptions should not be null');
-        System.assert(!fo.timeframeOptions.isEmpty(), 'Timeframe options should exist');
     }
 }

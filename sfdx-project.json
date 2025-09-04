@@ -5,7 +5,7 @@
       "default": true
     }
   ],
-  "name": "JeffKPI v4.6.7",
+  "name": "JeffKPI v4.7.2",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "60.0"
