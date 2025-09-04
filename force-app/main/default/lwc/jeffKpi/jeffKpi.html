@@ -1,57 +1,58 @@
 <template>
-    <div class="filters slds-p-around_small">
-        <lightning-layout horizontal-align="spread">
-            <lightning-layout-item flexibility="auto">
-                <lightning-input type="date" label="Start date" value={startDateStr} onchange={handleStart}></lightning-input>
-            </lightning-layout-item>
-            <lightning-layout-item flexibility="auto">
-                <lightning-input type="date" label="End date" value={endDateStr} onchange={handleEnd}></lightning-input>
-            </lightning-layout-item>
-            <lightning-layout-item flexibility="auto">
-                <lightning-button label="Refresh" variant="brand" onclick={refresh}></lightning-button>
-            </lightning-layout-item>
-        </lightning-layout>
+    <div class="filters">
+        <lightning-combobox
+            name="user"
+            label="User"
+            value={selectedUserId}
+            options={userOptions}
+            placeholder="All Users"
+            onchange={handleUserChange}>
+        </lightning-combobox>
+
+        <lightning-combobox
+            name="partner"
+            label="Partner"
+            value={selectedPartner}
+            options={partnerOptions}
+            placeholder="All Partners"
+            onchange={handlePartnerChange}>
+        </lightning-combobox>
+
+        <lightning-combobox
+            name="timeframe"
+            label="Timeframe"
+            value={selectedTimeframe}
+            options={timeframeOptions}
+            onchange={handleTimeframeChange}>
+        </lightning-combobox>
     </div>
 
-    <template if:true={kpis}>
-        <div class="card-grid">
-            <template for:each={kpis} for:item="u">
-                <article key={u.userId} class="kpi-card">
-                    <header class="kpi-header">
-                        <span class="user">{u.userName}</span>
-                    </header>
-                    <div class="kpi-body">
-                        <div class="metric">
-                            <span class="label">Total</span>
-                            <span class="value">{u.totalOpps}</span>
-                        </div>
-                        <div class="metric">
-                            <span class="label">Open</span>
-                            <span class="value">{u.openOpps}</span>
-                        </div>
-                        <div class="metric">
-                            <span class="label">Overdue</span>
-                            <span class={u.overdueClass}>{u.overdueOpps}</span>
-                        </div>
-                        <div class="metric">
-                            <span class="label">Won</span>
-                            <span class="value">{u.wonOpps}</span>
-                        </div>
-                        <div class="metric">
-                            <span class="label">Lost</span>
-                            <span class="value">{u.lostOpps}</span>
-                        </div>
-                        <div class="metric">
-                            <span class="label">Win Rate</span>
-                            <span class={u.winRateClass}>{u.winRate}%</span>
-                        </div>
-                    </div>
-                </article>
-            </template>
-        </div>
-    </template>
+    <div class="grid">
+        <lightning-card title="Open Opportunities" icon-name="standard:opportunity">
+            <div class="metric">{metrics.openCount}</div>
+            <div class="sub">Amount: {metrics.openAmount}</div>
+        </lightning-card>
 
-    <template if:true={errorMessage}>
-        <div class="slds-text-color_error slds-p-around_small">{errorMessage}</div>
-    </template>
+        <lightning-card title="Closed Won" icon-name="utility:success">
+            <div class="metric">{metrics.wonCount}</div>
+            <div class="sub">Amount: {metrics.wonAmount}</div>
+        </lightning-card>
+
+        <lightning-card title="Closed Lost" icon-name="utility:error">
+            <div class="metric">{metrics.lostCount}</div>
+            <div class="sub">Amount: {metrics.lostAmount}</div>
+        </lightning-card>
+
+        <lightning-card title="Tasks - Open" icon-name="standard:task">
+            <div class="metric">{activity.openTasks}</div>
+        </lightning-card>
+
+        <lightning-card title="Tasks - Completed" icon-name="standard:task2">
+            <div class="metric">{activity.completedTasks}</div>
+        </lightning-card>
+
+        <lightning-card title="Events" icon-name="standard:event">
+            <div class="metric">{activity.events}</div>
+        </lightning-card>
+    </div>
 </template>

@@ -1,52 +1,24 @@
-:host {
-    --card-radius: 0.75rem;
-    --card-border: 1px solid #d9d9d9;
-    --shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-.card-grid {
+.filters {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(3, minmax(200px, 1fr));
     gap: 1rem;
-    padding: 0.75rem;
+    margin-bottom: 1rem;
 }
-.kpi-card {
-    border: var(--card-border);
-    border-radius: var(--card-radius);
-    background: white;
-    box-shadow: var(--shadow);
-    overflow: hidden;
-}
-.kpi-header {
-    padding: 0.75rem 1rem;
-    font-weight: 600;
-    border-bottom: 1px solid #f0f0f0;
-    background: #fafafa;
-}
-.kpi-body {
+.grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem 1rem;
-    padding: 0.75rem 1rem 1rem;
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+    gap: 1rem;
 }
 .metric {
-    display: flex;
-    flex-direction: column;
-}
-.label {
-    font-size: 0.75rem;
-    color: #6b7280;
-    margin-bottom: 0.15rem;
-}
-.value {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: #111827;
-}
-.value.danger {
-    color: #ba0517; /* SLDS error text tone */
+    font-size: 2rem;
     font-weight: 700;
+    padding: 0.25rem 0;
 }
-.value.success {
-    color: #2e844a; /* SLDS success text tone */
-    font-weight: 700;
+.sub {
+    font-size: 0.85rem;
+    opacity: 0.85;
+}
+@media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    .filters { grid-template-columns: 1fr; }
 }

@@ -1,49 +1,68 @@
 import { LightningElement, track } from 'lwc';
-import getKPIs from '@salesforce/apex/JeffKPIController.getKPIs';
+import getUserOptions from '@salesforce/apex/JeffKPIController.getUserOptions';
+import getPartnerOptions from '@salesforce/apex/JeffKPIController.getPartnerOptions';
+import getUserActivitySummaryFiltered from '@salesforce/apex/JeffKPIController.getUserActivitySummaryFiltered';
+import getOpportunityMetricsFiltered from '@salesforce/apex/JeffKPIController.getOpportunityMetricsFiltered';
 
 export default class JeffKpi extends LightningElement {
-    @track kpis = [];
-    errorMessage;
-    startDateStr;
-    endDateStr;
+    @track userOptions = [{ label: 'All Users', value: '' }];
+    @track partnerOptions = [{ label: 'All Partners', value: '' }];
+    @track timeframeOptions = [
+        { label: 'This Month', value: 'ThisMonth' },
+        { label: 'Last Month', value: 'LastMonth' },
+        { label: 'This Week', value: 'ThisWeek' },
+        { label: 'Last Week', value: 'LastWeek' },
+        { label: 'Last 7 Days', value: 'Last7Days' },
+        { label: 'Last 30 Days', value: 'Last30Days' },
+        { label: 'This Quarter', value: 'ThisQuarter' },
+        { label: 'Last Quarter', value: 'LastQuarter' }
+    ];
+
+    selectedUserId = '';
+    selectedPartner = '';
+    selectedTimeframe = 'ThisMonth';
+
+    @track metrics = { openCount: 0, openAmount: 0, wonCount: 0, wonAmount: 0, lostCount: 0, lostAmount: 0 };
+    @track activity = { openTasks: 0, completedTasks: 0, events: 0 };
 
     connectedCallback() {
-        const today = new Date();
-        const start = new Date();
-        start.setDate(today.getDate() - 90);
-        this.startDateStr = start.toISOString().slice(0,10);
-        this.endDateStr = today.toISOString().slice(0,10);
-        this.refresh();
+        Promise.all([getUserOptions(), getPartnerOptions()])
+            .then(([users, partners]) => {
+                this.userOptions = [{ label: 'All Users', value: '' }, ...users];
+                this.partnerOptions = [{ label: 'All Partners', value: '' }, ...partners];
+                this.refreshData();
+            })
+            .catch((e) => {
+                console.error('Init error', e);
+            });
     }
 
-    handleStart(e) { this.startDateStr = e.target.value; }
-    handleEnd(e) { this.endDateStr = e.target.value; }
+    handleUserChange(event) {
+        this.selectedUserId = event.detail.value || '';
+        this.refreshData();
+    }
+    handlePartnerChange(event) {
+        this.selectedPartner = event.detail.value || '';
+        this.refreshData();
+    }
+    handleTimeframeChange(event) {
+        this.selectedTimeframe = event.detail.value;
+        this.refreshData();
+    }
 
-    refresh() {
-        this.errorMessage = undefined;
-        getKPIs({
-            startDate: this.startDateStr,
-            endDate: this.endDateStr,
-            userId: null
-        })
-        .then((res) => {
-            this.kpis = (res || []).map(r => {
-                const overdueClass = r.overdueOpps > 0 ? 'value danger' : 'value';
-                let winRateClass = 'value';
-                if (r.winRate < 50) {
-                    winRateClass = 'value danger';
-                } else if (r.winRate >= 70) {
-                    winRateClass = 'value success';
-                }
-                return { ...r, overdueClass, winRateClass };
-            });
-        })
-        .catch((err) => {
-            try {
-                this.errorMessage = err?.body?.message || err?.message || 'Unknown error';
-            } catch(e) {
-                this.errorMessage = 'Unknown error';
-            }
+    refreshData() {
+        const userId = this.selectedUserId && this.selectedUserId !== '' ? this.selectedUserId : null;
+        const partner = this.selectedPartner && this.selectedPartner !== '' ? this.selectedPartner : null;
+        const tf = this.selectedTimeframe;
+
+        Promise.all([
+            getOpportunityMetricsFiltered({ timeframe: tf, selectedUserId: userId, selectedPartner: partner }),
+            getUserActivitySummaryFiltered({ timeframe: tf, selectedUserId: userId, selectedPartner: partner })
+        ]).then(([opps, act]) => {
+            this.metrics = opps || this.metrics;
+            this.activity = act || this.activity;
+        }).catch((e) => {
+            console.error('Refresh error', e);
         });
     }
 }

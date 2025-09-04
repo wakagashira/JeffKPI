@@ -1,85 +1,105 @@
-@IsTest
-private class JeffKPIControllerTest {
-    @IsTest
-    static void testGetters() {
-        // Create supporting Account
-        Account a = new Account(Name = 'Test Account');
-        insert a;
+@isTest
+public class JeffKPIControllerTest {
+    @testSetup
+    static void setupData() {
+        // Create 2 test users
+        Profile p = [SELECT Id FROM Profile WHERE Name = 'Standard User' LIMIT 1];
+        
+        User u1 = new User(
+            Alias = 'u1test',
+            Email = 'u1@test.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'One',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            TimeZoneSidKey = 'America/New_York',
+            UserName = 'u1' + DateTime.now().getTime() + '@test.com',
+            ProfileId = p.Id
+        );
+        insert u1;
+        
+        User u2 = new User(
+            Alias = 'u2test',
+            Email = 'u2@test.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'Two',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US',
+            TimeZoneSidKey = 'America/New_York',
+            UserName = 'u2' + DateTime.now().getTime() + '@test.com',
+            ProfileId = p.Id,
+            Partner__c = 'TestPartner'
+        );
+        insert u2;
 
-        // Discover valid stage names for open, won, and closed-lost
-        String openStage = null, wonStage = null, lostStage = null;
-        for (OpportunityStage s : [SELECT MasterLabel, IsClosed, IsWon FROM OpportunityStage WHERE IsActive = true]) {
-            if (!s.IsClosed && openStage == null) openStage = s.MasterLabel;
-            if (s.IsWon && wonStage == null) wonStage = s.MasterLabel;
-            if (s.IsClosed && !s.IsWon && lostStage == null) lostStage = s.MasterLabel;
+        // Create Opportunities
+        Opportunity o1 = new Opportunity(
+            Name = 'Test Opp Open',
+            StageName = 'Prospecting',
+            CloseDate = Date.today().addDays(10),
+            OwnerId = u1.Id,
+            Amount = 1000
+        );
+        insert o1;
+
+        Opportunity o2 = new Opportunity(
+            Name = 'Test Opp Won',
+            StageName = 'Closed Won',
+            CloseDate = Date.today(),
+            OwnerId = u2.Id,
+            Amount = 2000
+        );
+        insert o2;
+
+        // Create Task
+        Task t = new Task(
+            Subject = 'Test Task',
+            OwnerId = u1.Id,
+            ActivityDate = Date.today(),
+            Status = 'Not Started'
+        );
+        insert t;
+
+        // Create Event
+        Event e = new Event(
+            Subject = 'Test Event',
+            StartDateTime = System.now(),
+            EndDateTime = System.now().addHours(1),
+            OwnerId = u2.Id
+        );
+        insert e;
+    }
+
+    @isTest
+    static void testControllerMethods() {
+        // Options
+        List<JeffKPIController.Option> users = JeffKPIController.getUserOptions();
+        System.assertNotEquals(0, users.size(), 'Should return users');
+
+        List<JeffKPIController.Option> partners = JeffKPIController.getPartnerOptions();
+        System.assertNotEquals(null, partners, 'Partner list should not be null');
+
+        // Legacy no-filter calls
+        JeffKPIController.UserActivitySummary act = JeffKPIController.getUserActivitySummary('ThisMonth');
+        System.assertNotEquals(null, act);
+
+        JeffKPIController.OpportunityMetrics opp = JeffKPIController.getOpportunityMetrics('ThisMonth');
+        System.assertNotEquals(null, opp);
+
+        // Filtered calls by user
+        JeffKPIController.UserActivitySummary act2 = JeffKPIController.getUserActivitySummaryFiltered('ThisMonth', users[0].value, null);
+        System.assertNotEquals(null, act2);
+
+        JeffKPIController.OpportunityMetrics opp2 = JeffKPIController.getOpportunityMetricsFiltered('ThisMonth', users[0].value, null);
+        System.assertNotEquals(null, opp2);
+
+        // Filtered calls by partner
+        if (!partners.isEmpty()) {
+            JeffKPIController.UserActivitySummary act3 = JeffKPIController.getUserActivitySummaryFiltered('ThisMonth', null, partners[0].value);
+            System.assertNotEquals(null, act3);
+
+            JeffKPIController.OpportunityMetrics opp3 = JeffKPIController.getOpportunityMetricsFiltered('ThisMonth', null, partners[0].value);
+            System.assertNotEquals(null, opp3);
         }
-        System.assertNotEquals(null, openStage, 'Need at least one open stage');
-        System.assertNotEquals(null, wonStage, 'Need at least one won stage');
-        System.assertNotEquals(null, lostStage, 'Need at least one closed-lost stage');
-
-        // Helper to set required custom fields, if they exist and are required
-        Opportunity baseOpp = new Opportunity();
-        baseOpp.put('Name', 'BASE');
-        baseOpp.put('StageName', openStage);
-        baseOpp.put('CloseDate', System.today());
-        baseOpp.put('AccountId', a.Id);
-        // Opportunistically set a commonly-required custom field if present in target org
-        try {
-            Map<String, Schema.SObjectField> fmap = Schema.SObjectType.Opportunity.fields.getMap();
-            if (fmap.containsKey('Opportunity_Type__c')) {
-                Schema.DescribeFieldResult d = fmap.get('Opportunity_Type__c').getDescribe();
-                if (d.getType() == Schema.DisplayType.Picklist && d.getPicklistValues().size() > 0) {
-                    baseOpp.put('Opportunity_Type__c', d.getPicklistValues()[0].getValue());
-                } else {
-                    baseOpp.put('Opportunity_Type__c', 'Automation');
-                }
-            }
-        } catch (Exception e) {
-            // ignore dynamic-set issues for orgs without the field
-        }
-
-        // Create records: 2 won, 1 lost, 1 open overdue
-        List<Opportunity> toIns = new List<Opportunity>();
-        // Open overdue
-        Opportunity o1 = baseOpp.clone(false, true, false, false);
-        o1.Name = 'Open Overdue';
-        o1.StageName = openStage;
-        o1.CloseDate = System.today().addDays(-1);
-        toIns.add(o1);
-
-        // Won #1
-        Opportunity o2 = baseOpp.clone(false, true, false, false);
-        o2.Name = 'Won 1';
-        o2.StageName = wonStage;
-        o2.CloseDate = System.today();
-        toIns.add(o2);
-
-        // Won #2
-        Opportunity o3 = baseOpp.clone(false, true, false, false);
-        o3.Name = 'Won 2';
-        o3.StageName = wonStage;
-        o3.CloseDate = System.today();
-        toIns.add(o3);
-
-        // Lost
-        Opportunity o4 = baseOpp.clone(false, true, false, false);
-        o4.Name = 'Lost 1';
-        o4.StageName = lostStage;
-        o4.CloseDate = System.today();
-        toIns.add(o4);
-
-        insert toIns;
-
-        Test.startTest();
-        List<JeffKPIController.KPI> res = JeffKPIController.getKPIs(System.today().addDays(-30), System.today().addDays(30), UserInfo.getUserId());
-        Test.stopTest();
-
-        System.assertEquals(1, res.size(), 'Expect one KPI row for current user');
-        JeffKPIController.KPI k = res[0];
-        System.assertEquals(4, k.totalOpps, 'Total opps should be 4');
-        System.assertEquals(1, k.overdueOpps, 'Overdue should be 1');
-        System.assertEquals(2, k.wonOpps, 'Won should be 2');
-        System.assertEquals(1, k.lostOpps, 'Lost should be 1');
-        System.assertEquals(50, k.winRate, 'Win rate should be 50%');
     }
 }
