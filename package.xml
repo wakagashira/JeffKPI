@@ -6,12 +6,8 @@
     <name>ApexClass</name>
   </types>
   <types>
-    <members>JeffKPI</members>
+    <members>JeffKPI_UserCards</members>
     <name>PermissionSet</name>
-  </types>
-  <types>
-    <members>jeffKpi</members>
-    <name>LightningComponentBundle</name>
   </types>
   <version>61.0</version>
 </Package>

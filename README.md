@@ -1,13 +1,13 @@
-# JeffKPI v4.1.2 — Conditional Formatting Reliability Fix
+# Jeff KPI (v4.6.7)
 
-**What's new in v4.1.2**
-- Overdue and Win Rate formatting fixed:
-  - Added null-safe defaults for values from Apex.
-  - Guaranteed base class `metric-value` for consistent styling.
-  - CSS ensures default black text, with overrides for red/green.
-- Retains all features from v4.1.1.
+This DX project deploys:
+- Apex: `JeffKPIController` (+ test)
+- LWC: `jeffKpi`
 
-**Deploy**
-sf org login web --alias Prod --instance-url https://login.salesforce.com
-sf project deploy start --source-dir force-app --target-org Prod
-sf permset assign --name JeffKPI --target-org Prod
+**No FlexiPage** is included to avoid metadata parsing errors. After deployment, add the `jeffKpi` component to a Lightning App/Home page via App Builder.
+
+## Deploy
+
+```bash
+sf project deploy start --source-dir force-app/main/default --target-org <your_alias>
+```

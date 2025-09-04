@@ -1,49 +1,70 @@
 import { LightningElement, track } from 'lwc';
+import getFilterOptions from '@salesforce/apex/JeffKPIController.getFilterOptions';
 import getKPIs from '@salesforce/apex/JeffKPIController.getKPIs';
 
 export default class JeffKpi extends LightningElement {
-    @track kpis = [];
-    errorMessage;
-    startDateStr;
-    endDateStr;
+    @track timeframe = 'MTD';
+    @track ownerId = null;
+    @track topN = 10;
+
+    @track timeframeOptions = [];
+    @track ownerOptions = [];
+    @track rows = [];
+
+    columns = [
+        { label: 'Owner', fieldName: 'userName', type: 'text' },
+        { label: 'Open Pipeline', fieldName: 'pipeline', type: 'currency' },
+        { label: 'Open Count', fieldName: 'openCount', type: 'number' },
+        { label: 'Won Amount', fieldName: 'wonAmount', type: 'currency' },
+        { label: 'Won Count', fieldName: 'wonCount', type: 'number' }
+    ];
 
     connectedCallback() {
-        const today = new Date();
-        const start = new Date();
-        start.setDate(today.getDate() - 90);
-        this.startDateStr = start.toISOString().slice(0,10);
-        this.endDateStr = today.toISOString().slice(0,10);
+        this.loadFilters();
+    }
+
+    loadFilters() {
+        getFilterOptions()
+            .then(res => {
+                this.timeframeOptions = res.timeframeOptions?.map(o => ({ label: o.label, value: o.value })) || [];
+                const owners = res.ownerOptions?.map(o => ({ label: o.label, value: o.value })) || [];
+                this.ownerOptions = [{ label: 'All Owners', value: null }, ...owners];
+                this.refresh();
+            })
+            .catch(err => {
+                // eslint-disable-next-line no-console
+                console.error('Filter load error', err);
+                this.refresh();
+            });
+    }
+
+    refresh = () => {
+        getKPIs({ timeframe: this.timeframe, ownerId: this.ownerId, topN: this.topN })
+            .then(data => {
+                this.rows = data || [];
+            })
+            .catch(err => {
+                // eslint-disable-next-line no-console
+                console.error('KPI load error', err);
+                this.rows = [];
+            });
+    }
+
+    handleTimeframe = (e) => {
+        this.timeframe = e.detail.value;
         this.refresh();
     }
 
-    handleStart(e) { this.startDateStr = e.target.value; }
-    handleEnd(e) { this.endDateStr = e.target.value; }
+    handleOwner = (e) => {
+        const val = e.detail.value;
+        this.ownerId = (val === 'null' || val === '') ? null : val;
+        this.refresh();
+    }
 
-    refresh() {
-        this.errorMessage = undefined;
-        getKPIs({
-            startDate: this.startDateStr,
-            endDate: this.endDateStr,
-            userId: null
-        })
-        .then((res) => {
-            this.kpis = (res || []).map(r => {
-                const overdueClass = r.overdueOpps > 0 ? 'value danger' : 'value';
-                let winRateClass = 'value';
-                if (r.winRate < 50) {
-                    winRateClass = 'value danger';
-                } else if (r.winRate >= 70) {
-                    winRateClass = 'value success';
-                }
-                return { ...r, overdueClass, winRateClass };
-            });
-        })
-        .catch((err) => {
-            try {
-                this.errorMessage = err?.body?.message || err?.message || 'Unknown error';
-            } catch(e) {
-                this.errorMessage = 'Unknown error';
-            }
-        });
+    handleTopN = (e) => {
+        let n = parseInt(e.detail.value, 10);
+        if (!n || n < 1) n = 10;
+        this.topN = n;
+        this.refresh();
     }
 }
