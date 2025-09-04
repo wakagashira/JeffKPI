@@ -1,68 +1,76 @@
-import { LightningElement, track } from 'lwc';
-import getUserOptions from '@salesforce/apex/JeffKPIController.getUserOptions';
-import getPartnerOptions from '@salesforce/apex/JeffKPIController.getPartnerOptions';
-import getUserActivitySummaryFiltered from '@salesforce/apex/JeffKPIController.getUserActivitySummaryFiltered';
-import getOpportunityMetricsFiltered from '@salesforce/apex/JeffKPIController.getOpportunityMetricsFiltered';
+import { LightningElement, wire, track } from 'lwc';
+import getFilterOptions from '@salesforce/apex/JeffKPIController.getFilterOptions';
+import getUserKpis from '@salesforce/apex/JeffKPIController.getUserKpis';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 export default class JeffKpi extends LightningElement {
-    @track userOptions = [{ label: 'All Users', value: '' }];
-    @track partnerOptions = [{ label: 'All Partners', value: '' }];
+    @track partnerOptions = [];
+    @track userOptions = [];
     @track timeframeOptions = [
-        { label: 'This Month', value: 'ThisMonth' },
-        { label: 'Last Month', value: 'LastMonth' },
-        { label: 'This Week', value: 'ThisWeek' },
-        { label: 'Last Week', value: 'LastWeek' },
-        { label: 'Last 7 Days', value: 'Last7Days' },
-        { label: 'Last 30 Days', value: 'Last30Days' },
-        { label: 'This Quarter', value: 'ThisQuarter' },
-        { label: 'Last Quarter', value: 'LastQuarter' }
+        { label: 'Last 7 Days', value: '7' },
+        { label: 'Last 30 Days', value: '30' }
     ];
 
-    selectedUserId = '';
-    selectedPartner = '';
-    selectedTimeframe = 'ThisMonth';
+    selectedPartner = 'ALL';
+    selectedUser = 'ALL';
+    timeframeDays = '7';
 
-    @track metrics = { openCount: 0, openAmount: 0, wonCount: 0, wonAmount: 0, lostCount: 0, lostAmount: 0 };
-    @track activity = { openTasks: 0, completedTasks: 0, events: 0 };
+    loading = true;
+    userKpis = [];
 
-    connectedCallback() {
-        Promise.all([getUserOptions(), getPartnerOptions()])
-            .then(([users, partners]) => {
-                this.userOptions = [{ label: 'All Users', value: '' }, ...users];
-                this.partnerOptions = [{ label: 'All Partners', value: '' }, ...partners];
-                this.refreshData();
+    get userKpisToShow() {
+        if (!this.userKpis) return [];
+        if (this.selectedUser === 'ALL') return this.userKpis;
+        return this.userKpis.filter(u => String(u.userId) === String(this.selectedUser));
+    }
+
+    @wire(getFilterOptions)
+    wiredFilters({ error, data }) {
+        if (data) {
+            this.partnerOptions = [{ label: 'All Partners', value: 'ALL' }, ...data.partners.map(p => ({ label: p.label, value: p.value }))];
+            this.userOptions = [{ label: 'All Users', value: 'ALL' }, ...data.users.map(u => ({ label: u.label, value: u.value }))];
+            this.loading = false;
+            this.loadAll();
+        } else if (error) {
+            this.loading = false;
+            this.showError('Failed to load filters', error);
+        }
+    }
+
+    connectedCallback() { this.loading = true; }
+
+    handlePartnerChange(event) {
+        this.selectedPartner = event.detail.value || 'ALL';
+        this.loadAll();
+    }
+    handleUserChange(event) {
+        this.selectedUser = event.detail.value || 'ALL';
+        this.loadAll();
+    }
+    handleTimeframeChange(event) {
+        this.timeframeDays = event.detail.value;
+        this.loadAll();
+    }
+
+    loadAll() {
+        this.loading = true;
+        const partnerName = (this.selectedPartner === 'ALL') ? null : this.selectedPartner;
+        const days = parseInt(this.timeframeDays, 10);
+
+        getUserKpis({ partnerName, timeframeDays: days })
+            .then(users => {
+                this.userKpis = users || [];
             })
-            .catch((e) => {
-                console.error('Init error', e);
+            .catch(err => {
+                this.showError('Failed to load KPIs', err);
+            })
+            .finally(() => {
+                this.loading = false;
             });
     }
 
-    handleUserChange(event) {
-        this.selectedUserId = event.detail.value || '';
-        this.refreshData();
-    }
-    handlePartnerChange(event) {
-        this.selectedPartner = event.detail.value || '';
-        this.refreshData();
-    }
-    handleTimeframeChange(event) {
-        this.selectedTimeframe = event.detail.value;
-        this.refreshData();
-    }
-
-    refreshData() {
-        const userId = this.selectedUserId && this.selectedUserId !== '' ? this.selectedUserId : null;
-        const partner = this.selectedPartner && this.selectedPartner !== '' ? this.selectedPartner : null;
-        const tf = this.selectedTimeframe;
-
-        Promise.all([
-            getOpportunityMetricsFiltered({ timeframe: tf, selectedUserId: userId, selectedPartner: partner }),
-            getUserActivitySummaryFiltered({ timeframe: tf, selectedUserId: userId, selectedPartner: partner })
-        ]).then(([opps, act]) => {
-            this.metrics = opps || this.metrics;
-            this.activity = act || this.activity;
-        }).catch((e) => {
-            console.error('Refresh error', e);
-        });
+    showError(title, error) {
+        let message = (error && error.body && error.body.message) ? error.body.message : 'Unknown error';
+        this.dispatchEvent(new ShowToastEvent({ title, message, variant: 'error' }));
     }
 }

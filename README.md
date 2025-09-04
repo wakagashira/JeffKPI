@@ -1,29 +1,16 @@
-# JeffKPI v4.2 (4.1 + User & Partner filters)
+# JeffKPI v3.6.8 — Full Working Bundle for Production
 
-This package adds **dropdown filters** for **User** and **Partner** (where `Partner__c` is a custom field on the **User** object) to the `jeffKpi` component and wires those filters into the Apex controller, **without breaking the legacy card methods**.
+**What's included**
+- Apex: JeffKPIController (clean dynamic SOQL; timeframe on activities + wins) and JeffKPIControllerTest (with Opportunity_Type__c).
+- LWC: jeffKpi (HTML/JS/CSS/Meta) — card layout, professional styling; Partner/User/Timeframe filters; fixed user filter.
+- Permission Set: JeffKPI (Apex class access).
+- Manifest & Project files.
 
-## What’s included
-- `JeffKPIController.cls` — adds:
-  - `getUserOptions()`
-  - `getPartnerOptions()` (derived from distinct `User.Partner__c` values)
-  - **New** filtered endpoints:
-    - `getUserActivitySummaryFiltered(timeframe, selectedUserId, selectedPartner)`
-    - `getOpportunityMetricsFiltered(timeframe, selectedUserId, selectedPartner)`
-  - **Legacy-compatible** endpoints preserved:
-    - `getUserActivitySummary(timeframe)` → calls filtered version with `null` filters
-    - `getOpportunityMetrics(timeframe)` → calls filtered version with `null` filters
-- LWC `jeffKpi` — adds dropdowns and refreshes the KPI cards when filters change
-- Permission set `JeffKPI` — grants access to the controller class
+**Deploy**
+sf org login web --alias Prod --instance-url https://login.salesforce.com
+sf project deploy start --source-dir force-app --target-org Prod
+sf permset assign --name JeffKPI --target-org Prod
 
-## Quick deploy (CLI)
-```bash
-# From the folder that contains sfdx-project.json
-sf project deploy start --source-dir force-app --target-org <YourAlias>
-```
-
-> If non-admin users see "insufficient privileges", assign the **JeffKPI** permission set to them.
-
-## Notes
-- **Partner filter** is resolved via `User.Partner__c` and filters records by **OwnerId IN users with that partner**.
-- **User filter** takes precedence if both User and Partner are set (i.e., it narrows to the single selected user).
-- Timeframes supported: ThisWeek, LastWeek, ThisMonth, LastMonth, Last7Days, Last30Days, ThisQuarter, LastQuarter.
+**After deploy**
+- In Lightning App Builder, add **Jeff KPI** to Home/App/Record Page.
+- If it doesn't appear, hard refresh and clear cached Lightning resources (Cmd+Shift+R / Ctrl+F5).

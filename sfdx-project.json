@@ -2,9 +2,13 @@
   "packageDirectories": [
     {
       "path": "force-app",
-      "default": true
+      "default": true,
+      "package": "JeffKPI_v3_6_8",
+      "versionName": "ver 3.6.8",
+      "versionNumber": "3.6.8.NEXT"
     }
   ],
+  "name": "JeffKPI_v3_6_8",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "61.0"

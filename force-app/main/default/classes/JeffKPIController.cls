@@ -1,199 +1,163 @@
-
-// v4.2 — Adds User & Partner (User.Partner__c) filters while keeping legacy methods intact
 public with sharing class JeffKPIController {
     public class Option {
-        @AuraEnabled public String label;
         @AuraEnabled public String value;
-        public Option(String l, String v) { label = l; value = v; }
+        @AuraEnabled public String label;
+        public Option(String v, String l) { value = v; label = l; }
     }
-    public class UserActivitySummary {
-        @AuraEnabled public Integer openTasks;
-        @AuraEnabled public Integer completedTasks;
-        @AuraEnabled public Integer events;
+    public class FilterOptions {
+        @AuraEnabled public List<Option> partners;
+        @AuraEnabled public List<Option> users;
     }
-    public class OpportunityMetrics {
-        @AuraEnabled public Integer openCount;
-        @AuraEnabled public Decimal openAmount;
-        @AuraEnabled public Integer wonCount;
-        @AuraEnabled public Decimal wonAmount;
-        @AuraEnabled public Integer lostCount;
-        @AuraEnabled public Decimal lostAmount;
+    public class UserKPI {
+        @AuraEnabled public Id userId;
+        @AuraEnabled public String userName;
+        @AuraEnabled public Decimal totalPipelineAmount;
+        @AuraEnabled public Integer openOppCount;
+        @AuraEnabled public Integer proposedCount;
+        @AuraEnabled public Integer overdueOpps;
+        @AuraEnabled public Integer activities;
+        @AuraEnabled public Decimal winRate;
+        @AuraEnabled public Integer callCount;
+        @AuraEnabled public Integer emailCount;
+        @AuraEnabled public Integer taskCount;
+        @AuraEnabled public Integer meetingCount;
     }
 
-    // ===== Options =====
     @AuraEnabled(cacheable=true)
-    public static List<Option> getUserOptions() {
-        List<Option> opts = new List<Option>();
-        for (User u : [
-            SELECT Id, Name
-            FROM User
-            WHERE IsActive = true
-            ORDER BY Name
-            LIMIT 10000
-        ]) {
-            opts.add(new Option(u.Name, (String)u.Id));
+    public static FilterOptions getFilterOptions() {
+        FilterOptions fo = new FilterOptions();
+        fo.partners = new List<Option>();
+        fo.users = new List<Option>();
+
+        // Partner options from User.Partner__c (distinct, active users only)
+        Set<String> partnerNames = new Set<String>();
+        for (User u : [SELECT Partner__c FROM User WHERE Partner__c != null AND IsActive = true]) {
+            partnerNames.add(u.Partner__c);
         }
-        return opts;
-    }
-
-    @AuraEnabled(cacheable=true)
-    public static List<Option> getPartnerOptions() {
-        List<Option> opts = new List<Option>();
-        for (AggregateResult ar : [
-            SELECT Partner__c p
-            FROM User
-            WHERE IsActive = true AND Partner__c != null
-            GROUP BY Partner__c
-            ORDER BY Partner__c
-        ]) {
-            String p = (String) ar.get('p');
-            opts.add(new Option(p, p));
+        for (String pname : partnerNames) {
+            fo.partners.add(new Option(pname, pname));
         }
-        return opts;
-    }
 
-    // ===== Legacy compatible methods (no filters) =====
-    @AuraEnabled(cacheable=true)
-    public static UserActivitySummary getUserActivitySummary(String timeframe) {
-        return getUserActivitySummaryFiltered(timeframe, null, null);
-    }
-    @AuraEnabled(cacheable=true)
-    public static OpportunityMetrics getOpportunityMetrics(String timeframe) {
-        return getOpportunityMetricsFiltered(timeframe, null, null);
-    }
-
-    // ===== Filter-enabled methods =====
-    @AuraEnabled(cacheable=true)
-    public static UserActivitySummary getUserActivitySummaryFiltered(String timeframe, Id selectedUserId, String selectedPartner) {
-        Set<Id> ownerIds = resolveOwnerIds(selectedUserId, selectedPartner);
-
-        DateTimeRange r = computeRange(timeframe);
-        UserActivitySummary s = new UserActivitySummary();
-
-        // Open Tasks (status not completed) due in range OR with no due date
-        String taskWhere = ' IsDeleted = false ';
-        if (ownerIds != null && !ownerIds.isEmpty()) taskWhere += ' AND OwnerId IN :ownerIds ';
-        // Use ActivityDate for due date; count tasks with due date in range OR null
-        List<AggregateResult> taskOpen = Database.query('SELECT COUNT(Id) c FROM Task WHERE ' + taskWhere +
-            ' AND (Status != \'Completed\' AND (ActivityDate = null OR (ActivityDate >= :r.startDate AND ActivityDate <= :r.endDate)))');
-        s.openTasks = (Integer) taskOpen[0].get('c');
-
-        // Completed Tasks completed in range
-        String taskDoneWhere = ' IsDeleted = false AND Status = \'Completed\' ';
-        if (ownerIds != null && !ownerIds.isEmpty()) taskDoneWhere += ' AND OwnerId IN :ownerIds ';
-        List<AggregateResult> taskDone = Database.query('SELECT COUNT(Id) c FROM Task WHERE ' + taskDoneWhere +
-            ' AND (ActivityDate != null AND ActivityDate >= :r.startDate AND ActivityDate <= :r.endDate)');
-        s.completedTasks = (Integer) taskDone[0].get('c');
-
-        // Events in range
-        String eventWhere = ' IsDeleted = false ';
-        if (ownerIds != null && !ownerIds.isEmpty()) eventWhere += ' AND OwnerId IN :ownerIds ';
-        List<AggregateResult> evts = Database.query('SELECT COUNT(Id) c FROM Event WHERE ' + eventWhere +
-            ' AND (StartDateTime != null AND StartDateTime >= :r.startDateTime AND StartDateTime <= :r.endDateTime)');
-        s.events = (Integer) evts[0].get('c');
-
-        return s;
-    }
-
-    @AuraEnabled(cacheable=true)
-    public static OpportunityMetrics getOpportunityMetricsFiltered(String timeframe, Id selectedUserId, String selectedPartner) {
-        Set<Id> ownerIds = resolveOwnerIds(selectedUserId, selectedPartner);
-        DateTimeRange r = computeRange(timeframe);
-        OpportunityMetrics m = new OpportunityMetrics();
-
-        // OPEN
-        String openWhere = ' IsDeleted = false AND IsClosed = false ';
-        if (ownerIds != null && !ownerIds.isEmpty()) openWhere += ' AND OwnerId IN :ownerIds ';
-        // Consider CloseDate in/around range for open pipeline reporting (optional). We'll not restrict to range to show current pipeline.
-        List<AggregateResult> openAgg = Database.query('SELECT COUNT(Id) c, SUM(Amount) a FROM Opportunity WHERE ' + openWhere);
-        m.openCount = (Integer) openAgg[0].get('c');
-        m.openAmount = (Decimal) (openAgg[0].get('a') == null ? 0 : openAgg[0].get('a'));
-
-        // WON
-        String wonWhere = ' IsDeleted = false AND IsClosed = true AND IsWon = true ';
-        if (ownerIds != null && !ownerIds.isEmpty()) wonWhere += ' AND OwnerId IN :ownerIds ';
-        wonWhere += ' AND CloseDate >= :r.startDate AND CloseDate <= :r.endDate ';
-        List<AggregateResult> wonAgg = Database.query('SELECT COUNT(Id) c, SUM(Amount) a FROM Opportunity WHERE ' + wonWhere);
-        m.wonCount = (Integer) wonAgg[0].get('c');
-        m.wonAmount = (Decimal) (wonAgg[0].get('a') == null ? 0 : wonAgg[0].get('a'));
-
-        // LOST
-        String lostWhere = ' IsDeleted = false AND IsClosed = true AND IsWon = false ';
-        if (ownerIds != null && !ownerIds.isEmpty()) lostWhere += ' AND OwnerId IN :ownerIds ';
-        lostWhere += ' AND CloseDate >= :r.startDate AND CloseDate <= :r.endDate ';
-        List<AggregateResult> lostAgg = Database.query('SELECT COUNT(Id) c, SUM(Amount) a FROM Opportunity WHERE ' + lostWhere);
-        m.lostCount = (Integer) lostAgg[0].get('c');
-        m.lostAmount = (Decimal) (lostAgg[0].get('a') == null ? 0 : lostAgg[0].get('a'));
-
-        return m;
-    }
-
-    // ===== Helper: resolve owner Ids from user or partner =====
-    private static Set<Id> resolveOwnerIds(Id selectedUserId, String selectedPartner) {
-        if (selectedUserId != null) {
-            return new Set<Id>{selectedUserId};
+        // User options (active users)
+        for (User u : [SELECT Id, Name FROM User WHERE IsActive = true ORDER BY Name LIMIT 2000]) {
+            fo.users.add(new Option(u.Id, u.Name));
         }
-        if (selectedPartner != null && selectedPartner.trim() != '') {
-            Set<Id> ids = new Set<Id>();
-            for (User u : [SELECT Id FROM User WHERE IsActive = true AND Partner__c = :selectedPartner LIMIT 50000]) {
-                ids.add(u.Id);
+        return fo;
+    }
+
+    @AuraEnabled(cacheable=true)
+    public static List<UserKPI> getUserKpis(String partnerName, Integer timeframeDays) {
+        if (timeframeDays == null) timeframeDays = 7;
+        Date cutoffDate = System.today().addDays(-timeframeDays);
+
+        // Resolve partner users
+        Set<Id> partnerUsers = new Set<Id>();
+        if (partnerName != null) {
+            for (User u : [SELECT Id FROM User WHERE IsActive = true AND Partner__c = :partnerName]) {
+                partnerUsers.add(u.Id);
             }
-            return ids;
         }
-        return null; // means "no filter"
-    }
 
-    // ===== Date helpers =====
-    private class DateTimeRange {
-        public Date startDate;
-        public Date endDate;
-        public Datetime startDateTime;
-        public Datetime endDateTime;
-        public DateTimeRange(Date s, Date e) {
-            startDate = s; endDate = e;
-            startDateTime = Datetime.newInstance(s.year(), s.month(), s.day());
-            endDateTime = Datetime.newInstance(e.year(), e.month(), e.day(), 23, 59, 59);
-        }
-    }
-    private static DateTimeRange computeRange(String timeframe) {
-        if (String.isBlank(timeframe)) timeframe = 'ThisMonth';
-        Date today = Date.today();
+        // Build owner map from open opps (current pipeline view)
+        String baseWhere = ' WHERE IsClosed = false';
+        if (!partnerUsers.isEmpty()) baseWhere += ' AND OwnerId IN :partnerUsers';
+        List<Opportunity> openOpps = Database.query('SELECT Id, OwnerId, Amount, StageName, CloseDate FROM Opportunity' + baseWhere + ' LIMIT 5000');
 
-        if (timeframe == 'ThisWeek') {
-            return new DateTimeRange(Date.today().toStartOfWeek(), Date.today().toStartOfWeek().addDays(6));
-        } else if (timeframe == 'LastWeek') {
-            Date start = Date.today().toStartOfWeek().addDays(-7);
-            return new DateTimeRange(start, start.addDays(6));
-        } else if (timeframe == 'ThisMonth') {
-            Date s = Date.newInstance(today.year(), today.month(), 1);
-            Date e = s.addMonths(1).addDays(-1);
-            return new DateTimeRange(s, e);
-        } else if (timeframe == 'LastMonth') {
-            Date s = Date.newInstance(today.addMonths(-1).year(), today.addMonths(-1).month(), 1);
-            Date e = s.addMonths(1).addDays(-1);
-            return new DateTimeRange(s, e);
-        } else if (timeframe == 'Last7Days') {
-            return new DateTimeRange(today.addDays(-6), today);
-        } else if (timeframe == 'Last30Days') {
-            return new DateTimeRange(today.addDays(-29), today);
-        } else if (timeframe == 'ThisQuarter') {
-            Integer q = ((today.month() - 1) / 3) + 1;
-            Integer startMonth = ((q - 1) * 3) + 1;
-            Date s = Date.newInstance(today.year(), startMonth, 1);
-            Date e = s.addMonths(3).addDays(-1);
-            return new DateTimeRange(s, e);
-        } else if (timeframe == 'LastQuarter') {
-            Date shift = today.addMonths(-3);
-            Integer q = ((shift.month() - 1) / 3) + 1;
-            Integer startMonth = ((q - 1) * 3) + 1;
-            Date s = Date.newInstance(shift.year(), startMonth, 1);
-            Date e = s.addMonths(3).addDays(-1);
-            return new DateTimeRange(s, e);
-        } else {
-            // default to ThisMonth
-            Date s = Date.newInstance(today.year(), today.month(), 1);
-            Date e = s.addMonths(1).addDays(-1);
-            return new DateTimeRange(s, e);
+        Map<Id, UserKPI> byOwner = new Map<Id, UserKPI>();
+        for (Opportunity o : openOpps) {
+            if (!byOwner.containsKey(o.OwnerId)) {
+                UserKPI k = new UserKPI();
+                k.userId = o.OwnerId; k.userName = null;
+                k.totalPipelineAmount=0; k.openOppCount=0; k.proposedCount=0; k.overdueOpps=0; k.activities=0;
+                k.callCount=0; k.emailCount=0; k.taskCount=0; k.meetingCount=0; k.winRate=0;
+                byOwner.put(o.OwnerId, k);
+            }
+            UserKPI ku = byOwner.get(o.OwnerId);
+            ku.openOppCount++;
+            if (o.Amount != null) ku.totalPipelineAmount += o.Amount;
+            if (o.StageName == 'Proposed' || o.StageName == 'Proposal / Audit Generation') ku.proposedCount++;
+            if (o.CloseDate != null && o.CloseDate < Date.today()) ku.overdueOpps++;
         }
+
+        // Aggregate tasks by subtype across owners found above
+        if (!byOwner.isEmpty()) {
+            List<AggregateResult> taskAggs = [
+                SELECT OwnerId, TaskSubtype, COUNT(Id) cnt
+                FROM Task
+                WHERE ActivityDate >= :cutoffDate
+                AND OwnerId IN :byOwner.keySet()
+                GROUP BY OwnerId, TaskSubtype
+            ];
+            for (AggregateResult ar : taskAggs) {
+                Id ownerId = (Id) ar.get('OwnerId');
+                String subtype = (String) ar.get('TaskSubtype');
+                Integer c = (Integer) ar.get('cnt');
+                if (byOwner.containsKey(ownerId)) {
+                    UserKPI k = byOwner.get(ownerId);
+                    if (subtype == 'Call') k.callCount += c;
+                    else if (subtype == 'Email') k.emailCount += c;
+                    else k.taskCount += c;
+                    k.activities += c;
+                }
+            }
+
+            // Meetings (Events) count
+            List<AggregateResult> eventAggs = [
+                SELECT OwnerId, COUNT(Id) cnt
+                FROM Event
+                WHERE ActivityDate >= :cutoffDate
+                AND OwnerId IN :byOwner.keySet()
+                GROUP BY OwnerId
+            ];
+            for (AggregateResult ar : eventAggs) {
+                Id ownerId = (Id) ar.get('OwnerId');
+                Integer c = (Integer) ar.get('cnt');
+                if (byOwner.containsKey(ownerId)) {
+                    UserKPI k = byOwner.get(ownerId);
+                    k.meetingCount += c;
+                    k.activities += c;
+                }
+            }
+        }
+
+        // Win rates by owner (closed opps in timeframe)
+        String winQuery = 'SELECT OwnerId, IsWon, COUNT(Id) cnt ' +
+                          'FROM Opportunity ' +
+                          'WHERE IsClosed = true AND CloseDate >= :cutoffDate';
+        if (!partnerUsers.isEmpty()) {
+            winQuery += ' AND OwnerId IN :partnerUsers';
+        }
+        winQuery += ' GROUP BY OwnerId, IsWon';
+        List<AggregateResult> winAggs = Database.query(winQuery);
+
+        Map<Id,Integer> wins = new Map<Id,Integer>(); 
+        Map<Id,Integer> totals = new Map<Id,Integer>();
+        for (AggregateResult ag : winAggs) {
+            Id oid = (Id) ag.get('OwnerId');
+            Boolean won = (Boolean) ag.get('IsWon');
+            Integer c = (Integer) ag.get('cnt');
+            totals.put(oid, (totals.containsKey(oid)?totals.get(oid):0) + c);
+            if (won) wins.put(oid, (wins.containsKey(oid)?wins.get(oid):0) + c);
+            if (!byOwner.containsKey(oid)) {
+                UserKPI empty = new UserKPI();
+                empty.userId = oid; empty.userName = null;
+                empty.totalPipelineAmount=0; empty.openOppCount=0; empty.proposedCount=0; empty.overdueOpps=0; empty.activities=0;
+                empty.callCount=0; empty.emailCount=0; empty.taskCount=0; empty.meetingCount=0; empty.winRate=0;
+                byOwner.put(oid, empty);
+            }
+        }
+        for (Id oid : byOwner.keySet()) {
+            Integer t = totals.containsKey(oid)?totals.get(oid):0;
+            Integer w = wins.containsKey(oid)?wins.get(oid):0;
+            byOwner.get(oid).winRate = t>0 ? (((Decimal)w) * 100) / (Decimal)t : 0;
+        }
+
+        // Fill user names
+        if (!byOwner.isEmpty()) {
+            for (User u : [SELECT Id, Name FROM User WHERE Id IN :byOwner.keySet()]) {
+                byOwner.get(u.Id).userName = u.Name;
+            }
+        }
+        return new List<UserKPI>(byOwner.values());
     }
 }
