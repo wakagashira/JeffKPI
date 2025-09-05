@@ -5,7 +5,7 @@ import getUserKpis from '@salesforce/apex/JeffKPIController.getUserKpis';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 export default class JeffKpi extends LightningElement {
-    version = "5.0.5";
+    version = "5.0.9";
     get headerText() { return `Jeff KPI v${this.version}`; }
 
     @track partnerOptions = [];

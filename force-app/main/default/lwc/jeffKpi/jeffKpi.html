@@ -34,7 +34,15 @@
                     <div key={u.userId} class="user-card">
                         <div class="user-header">{u.userName}</div>
                         <div class="user-grid">
-                            <div class="metric-box"><strong>{u.totalPipelineAmount}</strong><span>Pipeline</span></div>
+                            <div class="metric-box"><strong>
+    <lightning-formatted-number
+        value={u.totalPipelineAmount}
+        format-style="currency"
+        currency-code="USD"
+        minimum-fraction-digits="0"
+        maximum-fraction-digits="0">
+    </lightning-formatted-number>
+</strong><span>Pipeline</span></div>
                             <div class="metric-box"><strong>{u.openOppCount}</strong><span>Open Opps</span></div>
                             <div class="metric-box"><strong>{u.proposedCount}</strong><span>Proposed</span></div>
                             <div class="metric-box"><strong>{u.overdueOpps}</strong><span>Overdue</span></div>

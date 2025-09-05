@@ -26,3 +26,15 @@
 ## [v5.0.6] - 2025-09-05
 ### Fixed
 - Corrected all LWC template attribute bindings to use proper syntax (e.g., title={headerText} instead of title="{headerText}").
+
+## [v5.0.7] - 2025-09-05
+### Fixed
+- Replaced all `pipelineValue` template bindings with `<lightning-formatted-number>` for proper USD currency formatting (adds `$` and commas, no cents).
+
+## [v5.0.8] - 2025-09-05
+### Changed
+- Extended USD currency formatting to **Bookings, Quota, and Closed Won** fields (now all monetary KPIs render with `$` and commas, no cents).
+
+## [v5.0.9] - 2025-09-05
+### Changed
+- Bumped header version to show `Jeff KPI v5.0.9` dynamically in the UI.
