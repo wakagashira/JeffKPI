@@ -1,9 +1,13 @@
+const VERSION = "5.0.3";
 import { LightningElement, wire, track } from 'lwc';
 import getFilterOptions from '@salesforce/apex/JeffKPIController.getFilterOptions';
 import getUserKpis from '@salesforce/apex/JeffKPIController.getUserKpis';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 export default class JeffKpi extends LightningElement {
+    version = "5.0.5";
+    get headerText() { return `Jeff KPI v${this.version}`; }
+
     @track partnerOptions = [];
     @track userOptions = [];
     @track timeframeOptions = [
